@@ -1,0 +1,18 @@
+# Ignore the git and zip files we use
+.*
+*.zip
+
+# Ignore program and OS files
+.vscode
+*.DS_Store
+*desktop.ini
+
+# If you need to remove .DS_Store
+# find . -name .DS_Store -print0 | xargs -0 git rm -f --ignore-unmatch
+
+# Ignore 
+node_modules/
+__pycache__/
+*.py[cod]
+
+!.gitignore
