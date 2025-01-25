@@ -18,9 +18,12 @@ phases:
     commands:
       - pwd
 
+      # We use versioning on the buckets so that we can specify a specific version of the template to use
+      # Therefore, so we do not create extra versions, we will use --no-overwrite-newer on the aws s3 sync commands
+
       # Copy template files to host bucket
       - echo "Copying templates to s3..."
-      - aws s3 sync ./templates "s3://$HOST_BUCKET/atlantis"
+      - aws s3 sync ./templates "s3://$HOST_BUCKET/atlantis" --no-overwrite-newer
       - echo "Template copy complete."
 
       # Inventory host bucket
