@@ -1,0 +1,40 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: latest
+    commands:
+      - pwd
+      - pip install --upgrade awscli boto3
+
+  pre_build:
+    commands:
+
+  build:
+    commands:
+
+  post_build:
+    commands:
+      - pwd
+
+      # Copy template files to host bucket
+      - echo "Copying templates to s3..."
+      - aws s3 sync ./templates "s3://$HOST_BUCKET/atlantis"
+      - echo "Template copy complete."
+
+      # Inventory host bucket
+      - chmod +x s3_inventory.py
+      - ./s3_inventory.py my-bucket-name
+      - echo "Inventory complete."
+      - aws s3 cp ./outputs/inventory.json s3://$HOST_BUCKET
+      - echo "Inventory file copied to s3 bucket root."
+
+      # Send python script to host bucket
+      - zip -r s3_inventory.zip s3_inventory.py
+      - aws s3 cp s3_inventory.zip s3://$HOST_BUCKET/atlantis/utilities --no-overwrite-newer
+      - echo "s3_inventory.py zipped and copied to s3 bucket prefix atlantis/utilities."
+
+artifacts:
+  files:
+    - '**/*'

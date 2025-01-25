@@ -15,4 +15,7 @@ node_modules/
 __pycache__/
 *.py[cod]
 
+# Project Specific
+outputs/
+
 !.gitignore
