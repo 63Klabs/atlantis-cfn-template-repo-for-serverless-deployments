@@ -20,7 +20,11 @@ A zip file of the scripts can be copied from `s3://63klabs/atlantis/utilities/te
 
 ## Tutorial
 
-A tutorial is available from the repository.
+TODO
+
+## Changelog
+
+TODO
 
 ## Author
 
