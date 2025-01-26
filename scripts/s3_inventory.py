@@ -5,7 +5,14 @@ VERSION = "v0.1.0/2025-01-25"
 # https://chadkluck.me
 
 # Install:
+# pip install -r requirements.txt
+# -- OR --
 # pip install boto3
+# -- OR --
+# Create and activate virtual environment
+# python -m venv venv
+# source venv/bin/activate  # On Linux/Mac
+# pip install -r requirements.txt
 
 # Make Executable:
 # chmod +x s3_inventory.py
@@ -82,15 +89,22 @@ def generate_summary(versions, delete_markers, bucket, summary_file):
         for sc, count in storage_classes.items():
             f.write(f"{sc}: {count}\n")
 
-def get_bucket_inventory(s3_client, bucket):
-    """Retrieve all objects and their versions from the bucket"""
+def get_bucket_inventory(s3_client, bucket, prefix=''):
+    """Retrieve all objects and their versions from the bucket under specified prefix"""
     try:
         versions = []
         delete_markers = []
         
         paginator = s3_client.get_paginator('list_object_versions')
         
-        for page in paginator.paginate(Bucket=bucket):
+        # Add prefix to pagination parameters if provided
+        params = {'Bucket': bucket}
+        if prefix:
+            # Ensure prefix ends with / if provided
+            prefix = prefix.rstrip('/') + '/' if prefix else ''
+            params['Prefix'] = prefix
+        
+        for page in paginator.paginate(**params):
             # Process object versions
             if 'Versions' in page:
                 versions.extend(page['Versions'])
@@ -195,6 +209,7 @@ def generate_json_inventory(versions, delete_markers, json_file):
 def main():
     parser = argparse.ArgumentParser(description='Generate S3 bucket inventory')
     parser.add_argument('bucket', help='Name of the S3 bucket')
+    parser.add_argument('path', nargs='?', default='', help='Path prefix in the bucket to inventory (optional)')
     parser.add_argument('--profile', help='AWS profile name')
     parser.add_argument('--output-dir', default='outputs', help='Output directory for inventory files')
     args = parser.parse_args()
@@ -213,15 +228,22 @@ def main():
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         
         # Define output files
-        inventory_file = os.path.join(args.output_dir, f's3_inventory_{timestamp}.csv')
-        summary_file = os.path.join(args.output_dir, f's3_inventory_summary_{timestamp}.txt')
+        path_suffix = args.path.replace('/', '_').rstrip('_') if args.path else 'full'
+        inventory_file = os.path.join(args.output_dir, f's3_inventory_{path_suffix}_{timestamp}.csv')
+        summary_file = os.path.join(args.output_dir, f's3_inventory_summary_{path_suffix}_{timestamp}.txt')
         error_log = os.path.join(args.output_dir, f's3_inventory_errors_{timestamp}.log')
-        json_file = os.path.join(args.output_dir, 'inventory.json')  # New JSON file
+        json_file = os.path.join(args.output_dir, 'inventory.json')
         
         print(f"Starting inventory of bucket: {args.bucket}")
+        if args.path:
+            print(f"Inventorying path: {args.path}")
         
         # Get bucket inventory
-        versions, delete_markers = get_bucket_inventory(s3_client, args.bucket)
+        versions, delete_markers = get_bucket_inventory(s3_client, args.bucket, args.path)
+        
+        if not versions and not delete_markers:
+            print(f"No objects found in path: {args.path}")
+            return 0
         
         # Write inventory to CSV
         write_inventory_csv(versions, delete_markers, inventory_file)

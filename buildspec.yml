@@ -10,6 +10,11 @@ phases:
 
   pre_build:
     commands:
+      - export S3_BASE_PATH=atlantis
+      - export DRY_RUN="--dryrun"
+
+      - echo $HOST_BUCKET/$S3_BASE_PATH
+      - echo $DRY_RUN
 
   build:
     commands:
@@ -19,24 +24,24 @@ phases:
       - pwd
 
       # We use versioning on the buckets so that we can specify a specific version of the template to use
-      # Therefore, so we do not create extra versions, we will use --no-overwrite-newer on the aws s3 sync commands
+      # Therefore, so we do not create extra versions, we will use only copy changed files.
 
       # Copy template files to host bucket
       - echo "Copying templates to s3..."
-      - aws s3 sync ./templates "s3://$HOST_BUCKET/atlantis" --no-overwrite-newer
+      - aws s3 sync ./templates "s3://$HOST_BUCKET/$S3_BASE_PATH/templates" --delete --exact-timestamps --size-only --exclude "*" --exclude ".*" --exclude ".*/*" --include "*.zip" --include "*.json" --include "*.yaml" --include "*.yml" $DRY_RUN
       - echo "Template copy complete."
 
       # Inventory host bucket
-      - chmod +x s3_inventory.py
-      - ./s3_inventory.py my-bucket-name
+      - chmod +x ./scripts/s3_inventory.py
+      - ./scripts/s3_inventory.py $HOST_BUCKET $S3_BASE_PATH --output-dir outputs
       - echo "Inventory complete."
-      - aws s3 cp ./outputs/inventory.json s3://$HOST_BUCKET
-      - echo "Inventory file copied to s3 bucket root."
+      - aws s3 cp ./outputs/inventory.json s3://$HOST_BUCKET/$S3_BASE_PATH
+      - echo "Inventory file copied to s3 bucket root $HOST_BUCKET/$S3_BASE_PATH"
 
-      # Send python script to host bucket
-      - zip -r s3_inventory.zip s3_inventory.py
-      - aws s3 cp s3_inventory.zip s3://$HOST_BUCKET/atlantis/utilities --no-overwrite-newer
-      - echo "s3_inventory.py zipped and copied to s3 bucket prefix atlantis/utilities."
+      # Send sharable scripts to host bucket
+      - chmod +x ./scripts/upload_scripts.sh
+      - ./scripts/upload_scripts.sh $HOST_BUCKET $S3_BASE_PATH/utilities scripts
+      - echo "Scripts uploaded to s3 bucket $HOST_BUCKET/$S3_BASE_PATH/utilities"
 
 artifacts:
   files:
