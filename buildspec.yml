@@ -11,10 +11,11 @@ phases:
   pre_build:
     commands:
       - export S3_BASE_PATH=atlantis
-      - export DRY_RUN="--dryrun"
+      - export DRYRUN=""
+      #- export DRYRUN="--dryrun"
 
       - echo $HOST_BUCKET/$S3_BASE_PATH
-      - echo $DRY_RUN
+      - echo $DRYRUN
 
   build:
     commands:
@@ -27,21 +28,20 @@ phases:
       # Therefore, so we do not create extra versions, we will use only copy changed files.
 
       # Copy template files to host bucket
-      - echo "Copying templates to s3..."
-      - aws s3 sync ./templates "s3://$HOST_BUCKET/$S3_BASE_PATH/templates" --delete --exact-timestamps --size-only --exclude "*" --exclude ".*" --exclude ".*/*" --include "*.zip" --include "*.json" --include "*.yaml" --include "*.yml" $DRY_RUN
-      - echo "Template copy complete."
+      - echo "Executing script to sync templates..."
+      - chmod +x ./scripts/sync_templates.sh
+      - ./scripts/sync_templates.sh $HOST_BUCKET $S3_BASE_PATH/templates templates $DRYRUN
 
       # Inventory host bucket
+      - echo "Executing script to inventory S3..."
       - chmod +x ./scripts/s3_inventory.py
       - ./scripts/s3_inventory.py $HOST_BUCKET $S3_BASE_PATH --output-dir outputs
-      - echo "Inventory complete."
-      - aws s3 cp ./outputs/inventory.json s3://$HOST_BUCKET/$S3_BASE_PATH
-      - echo "Inventory file copied to s3 bucket root $HOST_BUCKET/$S3_BASE_PATH"
+      - [ -z "$DRYRUN" ] && aws s3 cp ./outputs/inventory.json s3://$HOST_BUCKET/$S3_BASE_PATH || echo "[DRYRUN] Would copy ./outputs/inventory.json to s3://$HOST_BUCKET/$S3_BASE_PATH"
 
       # Send sharable scripts to host bucket
+      - echo "Executing script to upload scripts..."
       - chmod +x ./scripts/upload_scripts.sh
-      - ./scripts/upload_scripts.sh $HOST_BUCKET $S3_BASE_PATH/utilities scripts
-      - echo "Scripts uploaded to s3 bucket $HOST_BUCKET/$S3_BASE_PATH/utilities"
+      - ./scripts/upload_scripts.sh $HOST_BUCKET $S3_BASE_PATH/utilities scripts $DRYRUN
 
 artifacts:
   files:
