@@ -10,10 +10,18 @@ Download this repository and utilize the commands in the buildspec.yml file to m
 
 If using AWS CodePipeline, just create a new pipeline that monitors changes to a branch in your repository and copies changes to an S3 bucket.
 
-> Hint: You can use the [template-pipeline-two-stage.yml](./templates/v2/pipeline/template-pipeline-two-stage.yml) to deploy your AWS CodePipeline.
+> Hint: You can use the [template-pipeline-two-stage.yml](./templates/v2/pipeline/template-pipeline-two-stage.yml) to deploy your AWS CodePipeline. All you need is an S3 bucket to use as the `HostBucket`.
 
 ## Scripts
 
 Use the scripts in the scripts directory to manage your templates in S3. Use the examples in [buildspec.yml](./buildspec.yml) and [scripts documentation](./scripts/README.md).
 
 A zip file of the scripts can be copied from `s3://63klabs/atlantis/utilities/template_scripts.zip` (or your own bucket) programmatically for use in other pipeline scripts.
+
+## Tutorial
+
+A tutorial is available from the repository.
+
+## Author
+
+Chad Kluck, Software Engineer, AWS Certified, [Website](https://chadkluck.me)
