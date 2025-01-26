@@ -95,6 +95,11 @@ def get_bucket_inventory(s3_client, bucket, prefix=''):
         versions = []
         delete_markers = []
         
+        # Get bucket region
+        region = s3_client.get_bucket_location(Bucket=bucket)['LocationConstraint']
+        if region is None:
+            region = 'us-east-1'
+        
         paginator = s3_client.get_paginator('list_object_versions')
         
         # Add prefix to pagination parameters if provided
@@ -107,10 +112,16 @@ def get_bucket_inventory(s3_client, bucket, prefix=''):
         for page in paginator.paginate(**params):
             # Process object versions
             if 'Versions' in page:
+                for version in page['Versions']:
+                    version['Bucket'] = bucket
+                    version['Region'] = region
                 versions.extend(page['Versions'])
             
             # Process delete markers
             if 'DeleteMarkers' in page:
+                for marker in page['DeleteMarkers']:
+                    marker['Bucket'] = bucket
+                    marker['Region'] = region
                 delete_markers.extend(page['DeleteMarkers'])
                 
         return versions, delete_markers
@@ -122,26 +133,57 @@ def write_inventory_csv(versions, delete_markers, output_file):
     """Write inventory data to CSV file"""
     with open(output_file, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(['File Path', 'Size (Bytes)', 'Last Modified', 'Version ID', 'Storage Class'])
+        writer.writerow([
+            'File Path', 
+            'Size (Bytes)', 
+            'Last Modified', 
+            'Version ID', 
+            'Storage Class',
+            'S3 URI',
+            'HTTP URI',
+            'ETag'
+        ])
         
         # Write versions
         for v in versions:
+            s3_uri = f"s3://{v['Bucket']}/{v['Key']}"
+            if v.get('VersionId'):
+                s3_uri += f"?versionId={v['VersionId']}"
+            
+            http_uri = f"https://{v['Bucket']}.s3.{v['Region']}.amazonaws.com/{v['Key']}"
+            if v.get('VersionId'):
+                http_uri += f"?versionId={v['VersionId']}"
+            
             writer.writerow([
                 v['Key'],
                 v.get('Size', 0),
                 v['LastModified'].isoformat(),
                 v.get('VersionId', '-'),
-                v.get('StorageClass', '-')
+                v.get('StorageClass', '-'),
+                s3_uri,
+                http_uri,
+                v.get('ETag', '-')
             ])
         
         # Write delete markers
         for dm in delete_markers:
+            s3_uri = f"s3://{dm['Bucket']}/{dm['Key']}"
+            if dm.get('VersionId'):
+                s3_uri += f"?versionId={dm['VersionId']}"
+            
+            http_uri = f"https://{dm['Bucket']}.s3.{dm['Region']}.amazonaws.com/{dm['Key']}"
+            if dm.get('VersionId'):
+                http_uri += f"?versionId={dm['VersionId']}"
+            
             writer.writerow([
                 dm['Key'],
                 0,
                 dm['LastModified'].isoformat(),
                 dm.get('VersionId', '-'),
-                'DeleteMarker'
+                'DeleteMarker',
+                s3_uri,
+                http_uri,
+                dm.get('ETag', '-')
             ])
 
 def generate_json_inventory(versions, delete_markers, json_file):
@@ -158,12 +200,23 @@ def generate_json_inventory(versions, delete_markers, json_file):
     # Process versions
     for v in versions:
         key = v['Key']
+        s3_uri = f"s3://{v['Bucket']}/{v['Key']}"
+        if v.get('VersionId'):
+            s3_uri += f"?versionId={v['VersionId']}"
+        
+        http_uri = f"https://{v['Bucket']}.s3.{v['Region']}.amazonaws.com/{v['Key']}"
+        if v.get('VersionId'):
+            http_uri += f"?versionId={v['VersionId']}"
+        
         version_info = {
             "version_id": v.get('VersionId', '-'),
             "last_modified": v['LastModified'].isoformat(),
             "size": v.get('Size', 0),
             "storage_class": v.get('StorageClass', 'Standard'),
-            "is_latest": v.get('IsLatest', False)
+            "is_latest": v.get('IsLatest', False),
+            "s3_uri": s3_uri,
+            "http_uri": http_uri,
+            "etag": v.get('ETag', '-')
         }
         
         inventory[key]["versions"].append(version_info)
@@ -176,12 +229,23 @@ def generate_json_inventory(versions, delete_markers, json_file):
     # Process delete markers
     for dm in delete_markers:
         key = dm['Key']
+        s3_uri = f"s3://{dm['Bucket']}/{dm['Key']}"
+        if dm.get('VersionId'):
+            s3_uri += f"?versionId={dm['VersionId']}"
+        
+        http_uri = f"https://{dm['Bucket']}.s3.{dm['Region']}.amazonaws.com/{dm['Key']}"
+        if dm.get('VersionId'):
+            http_uri += f"?versionId={dm['VersionId']}"
+        
         delete_marker_info = {
             "version_id": dm.get('VersionId', '-'),
             "last_modified": dm['LastModified'].isoformat(),
             "size": 0,
             "storage_class": "DeleteMarker",
-            "is_latest": dm.get('IsLatest', False)
+            "is_latest": dm.get('IsLatest', False),
+            "s3_uri": s3_uri,
+            "http_uri": http_uri,
+            "etag": dm.get('ETag', '-')
         }
         
         inventory[key]["versions"].append(delete_marker_info)
@@ -214,6 +278,16 @@ def main():
     parser.add_argument('--output-dir', default='outputs', help='Output directory for inventory files')
     args = parser.parse_args()
 
+    # Generate timestamp for filenames
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    
+    # Define all file paths before try block
+    path_suffix = args.path.replace('/', '_').rstrip('_') if args.path else 'full'
+    inventory_file = os.path.join(args.output_dir, f's3_inventory_{path_suffix}_{timestamp}.csv')
+    summary_file = os.path.join(args.output_dir, f's3_inventory_summary_{path_suffix}_{timestamp}.txt')
+    error_log = os.path.join(args.output_dir, f's3_inventory_errors_{timestamp}.log')
+    json_file = os.path.join(args.output_dir, 'inventory.json')
+
     try:
         # Create output directory
         create_output_directory(args.output_dir)
@@ -223,16 +297,6 @@ def main():
         
         # Check bucket access
         check_bucket_access(s3_client, args.bucket)
-        
-        # Generate timestamp for filenames
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        
-        # Define output files
-        path_suffix = args.path.replace('/', '_').rstrip('_') if args.path else 'full'
-        inventory_file = os.path.join(args.output_dir, f's3_inventory_{path_suffix}_{timestamp}.csv')
-        summary_file = os.path.join(args.output_dir, f's3_inventory_summary_{path_suffix}_{timestamp}.txt')
-        error_log = os.path.join(args.output_dir, f's3_inventory_errors_{timestamp}.log')
-        json_file = os.path.join(args.output_dir, 'inventory.json')
         
         print(f"Starting inventory of bucket: {args.bucket}")
         if args.path:
@@ -261,6 +325,8 @@ def main():
         
     except Exception as e:
         print(f"Error: {str(e)}")
+        # Create output directory if it doesn't exist (might not have been created if error occurred early)
+        create_output_directory(args.output_dir)
         with open(error_log, 'w') as f:
             f.write(f"Error occurred at {datetime.now().isoformat()}\n")
             f.write(str(e))

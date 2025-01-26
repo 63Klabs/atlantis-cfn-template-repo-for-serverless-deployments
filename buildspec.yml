@@ -1,5 +1,10 @@
 version: 0.2
 
+env:
+  variables:
+    S3_BASE_PATH: "atlantis"
+    DRYRUN: "" # set to "--dryrun" if performing dry runs
+
 phases:
   install:
     runtime-versions:
@@ -10,9 +15,6 @@ phases:
 
   pre_build:
     commands:
-      - export S3_BASE_PATH=atlantis
-      - export DRYRUN=""
-      #- export DRYRUN="--dryrun"
 
       - echo $HOST_BUCKET/$S3_BASE_PATH
       - echo $DRYRUN
@@ -22,6 +24,7 @@ phases:
 
   post_build:
     commands:
+
       - pwd
 
       # We use versioning on the buckets so that we can specify a specific version of the template to use
