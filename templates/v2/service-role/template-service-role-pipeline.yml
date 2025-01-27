@@ -5,7 +5,7 @@ Description: "Prefix-based IAM Role and Managed Policy for Atlantis Service Role
 # Atlantis for AWS SAM Deployments
 # Service Role Infrastructure Template 
 # Author: Chad Kluck - chadkluck.me
-# Version: v0.0.13/2025-01-25
+# Version: v0.0.14/2025-01-25
 
 # Documentation, Issues/Feature Requests, Latest Updates, and Security Reports on GitHub:
 # https://github.com/chadkluck/atlantis-for-aws-sam-deployments/
@@ -144,11 +144,11 @@ Resources:
   # resources specific to this prefix.
   # --
   
-  PrefixBasedCloudFormationServiceRole:
+  PrefixBasedCloudFormationPipelineMgmtServiceRole:
     Type: AWS::IAM::Role
     Properties:
       Path: !Ref RolePath
-      RoleName: !Sub "${PrefixUpper}-CloudFormation-Service-Role"
+      RoleName: !Sub "${PrefixUpper}-CloudFormation-Service-Role-Pipeline-Management"
       Description: !Sub "Service Role to Create and Manage an AWS CodePipeline for application projects under prefix ${Prefix}"
       PermissionsBoundary: !If [HasPermissionsBoundaryArn, !Ref PermissionsBoundaryArn, !Ref 'AWS::NoValue' ]
 
@@ -162,7 +162,7 @@ Resources:
             - cloudformation.amazonaws.com
 
       Policies:
-      - PolicyName: !Sub "${PrefixUpper}-CloudFormation-Service-Role-Policy"
+      - PolicyName: !Sub "${PrefixUpper}-CloudFormation-Service-Role-Pipeline-Management-Policy"
         PolicyDocument:
           Version: "2012-10-17"
           Statement:
@@ -290,7 +290,7 @@ Resources:
             Action:
               - iam:GetRole
               - iam:PassRole 
-            Resource: !GetAtt PrefixBasedCloudFormationServiceRole.Arn
+            Resource: !GetAtt PrefixBasedCloudFormationPipelineMgmtServiceRole.Arn
             Condition:
               StringEquals:
                 "iam:PassedToService": "cloudformation.amazonaws.com"
@@ -306,26 +306,26 @@ Resources:
 
 Outputs:
 
-  PrefixBasedCloudFormationServiceRoleArn:
-    Description: "The ARN of the Prefix-based CloudFormation Service Role"
-    Value: !GetAtt PrefixBasedCloudFormationServiceRole.Arn
+  PrefixBasedCloudFormationPipelineMgmtServiceRoleArn:
+    Description: "The ARN of the Prefix-based CloudFormation Service Role for Pipeline Management"
+    Value: !GetAtt PrefixBasedCloudFormationPipelineMgmtServiceRole.Arn
     Export:
-      Name: !Sub "${PrefixUpper}-CloudFormation-Service-Role-Arn"
+      Name: !Sub "${PrefixUpper}-CloudFormation-Pipeline-Mgmt-Service-Role-Arn"
 
-  PrefixBasedCloudFormationServiceRoleName:
+  PrefixBasedCloudFormationPipelineMgmtServiceRoleName:
     Description: "The Name of the Prefix-based CloudFormation Service Role"
-    Value: !Ref PrefixBasedCloudFormationServiceRole
+    Value: !Ref PrefixBasedCloudFormationPipelineMgmtServiceRole
     Export:
-      Name: !Sub "${PrefixUpper}-CloudFormation-Service-Role-Name"
+      Name: !Sub "${PrefixUpper}-CloudFormation-Pipeline-Mgmt-Service-Role-Name"
 
   PrefixBasedManagedPolicyArn:
     Description: "The ARN of the Prefix-based Managed Policy"
     Value: !Ref PrefixBasedManagedPolicy
     Export:
-      Name: !Sub "${PrefixUpper}-CloudFormation-Service-ManagedPolicy-Arn"
+      Name: !Sub "${PrefixUpper}-CloudFormation-Pipeline-Mgmt-Service-ManagedPolicy-Arn"
 
   PrefixBasedManagedPolicyName:
     Description: "The Name of the Prefix-based Managed Policy"
     Value: !Ref PrefixBasedManagedPolicy
     Export:
-      Name: !Sub "${PrefixUpper}-CloudFormation-Service-ManagedPolicy-Name"
+      Name: !Sub "${PrefixUpper}-CloudFormation-Pipeline-Mgmt-Service-ManagedPolicy-Name"

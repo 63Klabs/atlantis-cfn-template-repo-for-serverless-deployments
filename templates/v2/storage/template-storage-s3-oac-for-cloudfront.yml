@@ -3,7 +3,7 @@ Transform: AWS::Serverless-2016-10-31
 Description: "CloudFront distribution with S3 origin access control (OAC). Includes CloudFront cache invalidation - Deployed using SAM"
 
 # Atlantis for AWS SAM Deployments
-# Storage Infrastructure Template 
+# Storage Infrastructure Template
 # Author: Chad Kluck - chadkluck.me
 # Version: v0.0.12/2024-10-22
 
