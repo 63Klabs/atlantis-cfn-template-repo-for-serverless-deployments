@@ -37,14 +37,21 @@ phases:
       - echo "Executing script to sync templates..."
       - ./scripts/sync_templates.sh $HOST_BUCKET $S3_BASE_PATH/templates templates $DRYRUN
 
-      # Inventory host bucket
+      # Inventory host bucket templates
       - echo "Executing script to inventory S3..."
-      - ./scripts/s3_inventory.py $HOST_BUCKET $S3_BASE_PATH --output-dir outputs
-      - [ -z "$DRYRUN" ] && aws s3 cp ./outputs/inventory.json s3://$HOST_BUCKET/$S3_BASE_PATH || echo "[DRYRUN] Would copy ./outputs/inventory.json to s3://$HOST_BUCKET/$S3_BASE_PATH"
+      - ./scripts/s3_inventory.py $HOST_BUCKET $S3_BASE_PATH/templates --output-dir outputs
+      - [ -z "$DRYRUN" ] && aws s3 cp ./outputs/inventory_atlantis_templates.json s3://$HOST_BUCKET/$S3_BASE_PATH/templates/inventory.json || echo "[DRYRUN] Would copy ./outputs/inventory_atlantis_templates.json to s3://$HOST_BUCKET/$S3_BASE_PATH/templates"
+      - [ -z "$DRYRUN" ] && aws s3 cp ./outputs/inventory_atlantis_templates.txt s3://$HOST_BUCKET/$S3_BASE_PATH/templates/inventory.txt || echo "[DRYRUN] Would copy ./outputs/inventory_atlantis_templates.txt to s3://$HOST_BUCKET/$S3_BASE_PATH/templates"
 
       # Send sharable scripts to host bucket
       - echo "Executing script to upload scripts..."
       - ./scripts/upload_scripts.sh $HOST_BUCKET $S3_BASE_PATH/utilities scripts $DRYRUN
+
+      # Inventory host bucket utilities
+      - echo "Executing script to inventory S3..."
+      - ./scripts/s3_inventory.py $HOST_BUCKET $S3_BASE_PATH/utilities --output-dir outputs
+      - [ -z "$DRYRUN" ] && aws s3 cp ./outputs/inventory_atlantis_utilities.json s3://$HOST_BUCKET/$S3_BASE_PATH/utilities/inventory.json || echo "[DRYRUN] Would copy ./outputs/inventory_atlantis_utilities.json to s3://$HOST_BUCKET/$S3_BASE_PATH/utilities"
+      - [ -z "$DRYRUN" ] && aws s3 cp ./outputs/inventory_atlantis_utilities.txt s3://$HOST_BUCKET/$S3_BASE_PATH/utilities/inventory.txt || echo "[DRYRUN] Would copy ./outputs/inventory_atlantis_utilities.txt to s3://$HOST_BUCKET/$S3_BASE_PATH/utilities"
 
 artifacts:
   files:

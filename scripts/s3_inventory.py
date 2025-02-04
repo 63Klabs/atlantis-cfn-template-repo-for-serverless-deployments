@@ -31,9 +31,9 @@ import json
 import csv
 import os
 import argparse
-from datetime import datetime
 from botocore.exceptions import ClientError, ProfileNotFound
 from collections import defaultdict
+from datetime import datetime, UTC
 
 def setup_aws_client(profile=None):
     """Configure AWS client with optional profile"""
@@ -185,90 +185,81 @@ def write_inventory_csv(versions, delete_markers, output_file):
                 http_uri,
                 dm.get('ETag', '-')
             ])
-
-def generate_json_inventory(versions, delete_markers, json_file):
-    """Generate JSON inventory with grouped file paths and their versions"""
-    # Create a defaultdict to group versions by key
-    inventory = defaultdict(lambda: {
-        "versions": [],
-        "total_versions": 0,
-        "latest_version": None,
-        "total_size": 0,
-        "has_delete_markers": False
-    })
+def process_objects(versions, delete_markers):
+    """
+    Process versions and delete markers into a common data structure
+    Returns a defaultdict with sorted versions for each object, excluding any objects with delete markers
+    """
+    objects = defaultdict(list)
+    deleted_keys = {dm['Key'] for dm in delete_markers}  # Set of keys that have delete markers
     
-    # Process versions
-    for v in versions:
-        key = v['Key']
-        s3_uri = f"s3://{v['Bucket']}/{v['Key']}"
-        if v.get('VersionId'):
-            s3_uri += f"?versionId={v['VersionId']}"
+    # Only process versions for keys that don't have delete markers
+    for item in versions:
+        key = item['Key']
         
-        http_uri = f"https://{v['Bucket']}.s3.{v['Region']}.amazonaws.com/{v['Key']}"
-        if v.get('VersionId'):
-            http_uri += f"?versionId={v['VersionId']}"
+        # Skip if this key has any delete markers
+        if key in deleted_keys:
+            continue
+            
+        version_id = item.get('VersionId')
+        base_uri = f"s3://{item['Bucket']}/{key}"
+        versioned_uri = f"{base_uri}?versionId={version_id}" if version_id else base_uri
         
-        version_info = {
-            "version_id": v.get('VersionId', '-'),
-            "last_modified": v['LastModified'].isoformat(),
-            "size": v.get('Size', 0),
-            "storage_class": v.get('StorageClass', 'Standard'),
-            "is_latest": v.get('IsLatest', False),
-            "s3_uri": s3_uri,
-            "http_uri": http_uri,
-            "etag": v.get('ETag', '-')
-        }
-        
-        inventory[key]["versions"].append(version_info)
-        inventory[key]["total_versions"] += 1
-        inventory[key]["total_size"] += v.get('Size', 0)
-        
-        if v.get('IsLatest', False):
-            inventory[key]["latest_version"] = version_info
+        objects[key].append({
+            'uri': versioned_uri,
+            'base_uri': base_uri,
+            'bucket': item['Bucket'],
+            'key': key,
+            'version_id': version_id,
+            'size': item.get('Size', 0),
+            'last_modified': item['LastModified'],
+            'storage_class': item.get('StorageClass'),
+            'e_tag': item.get('ETag')
+        })
     
-    # Process delete markers
-    for dm in delete_markers:
-        key = dm['Key']
-        s3_uri = f"s3://{dm['Bucket']}/{dm['Key']}"
-        if dm.get('VersionId'):
-            s3_uri += f"?versionId={dm['VersionId']}"
-        
-        http_uri = f"https://{dm['Bucket']}.s3.{dm['Region']}.amazonaws.com/{dm['Key']}"
-        if dm.get('VersionId'):
-            http_uri += f"?versionId={dm['VersionId']}"
-        
-        delete_marker_info = {
-            "version_id": dm.get('VersionId', '-'),
-            "last_modified": dm['LastModified'].isoformat(),
-            "size": 0,
-            "storage_class": "DeleteMarker",
-            "is_latest": dm.get('IsLatest', False),
-            "s3_uri": s3_uri,
-            "http_uri": http_uri,
-            "etag": dm.get('ETag', '-')
-        }
-        
-        inventory[key]["versions"].append(delete_marker_info)
-        inventory[key]["total_versions"] += 1
-        inventory[key]["has_delete_markers"] = True
-        
-        if dm.get('IsLatest', False):
-            inventory[key]["latest_version"] = delete_marker_info
+    # Sort versions for each object by last_modified date
+    for versions in objects.values():
+        versions.sort(key=lambda x: x['last_modified'])
+    
+    return objects
 
-    # Convert defaultdict to regular dict and add metadata
-    output = {
-        "metadata": {
-            "generated_at": datetime.now().isoformat(),
-            "total_objects": len(inventory),
-            "total_versions": sum(item["total_versions"] for item in inventory.values()),
-            "total_size": sum(item["total_size"] for item in inventory.values())
-        },
-        "objects": inventory
+def generate_json_inventory(objects, json_file):
+    """Generate JSON inventory from processed objects"""
+    inventory = {
+        'generated_at': datetime.now(UTC).isoformat(),
+        'objects': {}
     }
     
-    # Write to JSON file
+    # Convert defaultdict to regular dict for JSON serialization
+    for key, versions in sorted(objects.items()):
+        inventory['objects'][key] = [
+            {k: v.isoformat() if isinstance(v, datetime) else v 
+             for k, v in version.items()}
+            for version in versions
+        ]
+    
     with open(json_file, 'w') as f:
-        json.dump(output, f, indent=2, sort_keys=True)
+        json.dump(inventory, f, indent=2)
+
+def generate_text_inventory(objects, text_file):
+    """Generate text inventory from processed objects"""
+    with open(text_file, 'w') as f:
+        f.write("S3 URI Inventory\n")
+        f.write("=" * 80 + "\n\n")
+        
+        # Write base URIs without versions
+        f.write("Base URIs (without versions):\n")
+        f.write("-" * 80 + "\n")
+        for key in sorted(objects.keys()):
+            f.write(f"{objects[key][0]['base_uri']}\n")
+        
+        # Write versioned URIs with dates
+        f.write("\nVersioned URIs with creation dates:\n")
+        f.write("-" * 80 + "\n")
+        for key in sorted(objects.keys()):
+            for obj in objects[key]:
+                f.write(f"{obj['uri']}\n")
+                f.write(f"    Created: {obj['last_modified'].isoformat()}\n")
 
 def main():
     parser = argparse.ArgumentParser(description='Generate S3 bucket inventory')
@@ -286,7 +277,8 @@ def main():
     inventory_file = os.path.join(args.output_dir, f's3_inventory_{path_suffix}_{timestamp}.csv')
     summary_file = os.path.join(args.output_dir, f's3_inventory_summary_{path_suffix}_{timestamp}.txt')
     error_log = os.path.join(args.output_dir, f's3_inventory_errors_{timestamp}.log')
-    json_file = os.path.join(args.output_dir, 'inventory.json')
+    json_file = os.path.join(args.output_dir, f'inventory_{path_suffix}.json')
+    text_file = os.path.join(args.output_dir, f'inventory_{path_suffix}.txt')
 
     try:
         # Create output directory
@@ -315,14 +307,19 @@ def main():
         # Generate summary
         generate_summary(versions, delete_markers, args.bucket, summary_file)
         
-        # Generate JSON inventory
-        generate_json_inventory(versions, delete_markers, json_file)
-        
+        # Process objects once
+        processed_objects = process_objects(versions, delete_markers)
+
+        # Generate both inventories using the processed data
+        generate_json_inventory(processed_objects, json_file)
+        generate_text_inventory(processed_objects, text_file)
+
         print("\nInventory complete!")
         print(f"Main inventory file: {inventory_file}")
         print(f"Summary file: {summary_file}")
         print(f"JSON inventory: {json_file}")
-        
+        print(f"Text inventory: {text_file}")
+
     except Exception as e:
         print(f"Error: {str(e)}")
         # Create output directory if it doesn't exist (might not have been created if error occurred early)
