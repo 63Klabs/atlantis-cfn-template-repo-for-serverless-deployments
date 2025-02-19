@@ -16,6 +16,6 @@ __pycache__/
 *.py[cod]
 
 # Project Specific
-outputs/
+outputs/*
 
 !.gitignore
