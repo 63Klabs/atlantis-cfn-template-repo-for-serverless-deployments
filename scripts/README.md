@@ -1,14 +1,14 @@
 # Scripts Directory
 
-This directory contains utility scripts for managing AWS templates.
+This directory contains utility scripts for managing AWS CloudFormatio templates using a template and module S3 bucket.
 
 ## Prerequisites
 
 Before using these scripts, ensure you have the following installed:
 
-- Python 3.x
+- Python 3.13+
 - AWS CLI configured with appropriate credentials
-- Required Python packages:
+- Required Python packages from `requirements.txt`
 
 ```bash
 pip install -r requirements.txt
