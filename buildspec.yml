@@ -2,7 +2,9 @@ version: 0.2
 
 env:
   variables:
+    SOURCE_DIR: "templates"
     S3_BASE_PATH: "atlantis"
+
     DRYRUN: "" # set to "--dryrun" if performing dry runs
 
 phases:
@@ -35,7 +37,9 @@ phases:
 
       # Copy template files to host bucket
       - echo "Executing script to sync templates..."
-      - ./scripts/sync_templates.sh $HOST_BUCKET $S3_BASE_PATH/templates templates $DRYRUN
+      - ./scripts/sync_templates.sh $SOURCE_DIR $HOST_BUCKET $S3_BASE_PATH/templates $DRYRUN
+      # If you have additional directories you can sync them next as long as you have a unique local and unique remote directory (don't use same as previous othewise it will perform a delete)
+#      - ./scripts/sync_templates.sh custom-templates $HOST_BUCKET $S3_BASE_PATH/custom-templates $DRYRUN
 
       # Inventory host bucket templates
       - echo "Executing script to inventory S3..."

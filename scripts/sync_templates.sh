@@ -4,37 +4,37 @@
 # chmod +x sync_templates.sh
 
 # Basic usage
-# ./sync_templates.sh my-bucket atlantis/templates
-# ./sync_templates.sh my-bucket atlantis/templates templates --profile myprofile
+# ./sync_templates.sh templates my-bucket atlantis/templates
+# ./sync_templates.sh templates my-bucket atlantis/templates --profile myprofile
 
 # Basic usage with default credentials
-# ./sync_templates.sh my-bucket atlantis/templates
+# ./sync_templates.sh templates my-bucket atlantis/templates
 
 # With specific profile
-# ./sync_templates.sh my-bucket atlantis/templates --profile myprofile
+# ./sync_templates.sh templates my-bucket atlantis/templates --profile myprofile
 
 # With custom source directory
-# ./sync_templates.sh my-bucket atlantis/templates custom-templates --profile myprofile
+# ./sync_templates.sh templates my-bucket atlantis/templates --profile myprofile
 
 # Dryrun to preview changes
-# ./sync_templates.sh my-bucket atlantis/templates --dryrun
+# ./sync_templates.sh templates my-bucket atlantis/templates --dryrun
 
 # Full example with all options
-# ./sync_templates.sh my-bucket atlantis/templates custom-templates --profile myprofile --dryrun
+# ./sync_templates.sh templates my-bucket atlantis/templates --profile myprofile --dryrun
 
 set -e  # Exit on error
 
-# Configuration
+# Initialize variables
+SOURCE_DIR=""
 BUCKET_NAME=""
 BASE_PATH=""
-SOURCE_DIR="templates"
 AWS_PROFILE=""
 DRYRUN=""
 
 # Function to show usage
 usage() {
-    echo "Usage: $0 <bucket-name> <base-path> [source-dir] [--profile profile-name] [--dryrun]"
-    echo "Example: $0 my-bucket atlantis/templates templates --profile myprofile"
+    echo "Usage: $0  <source-dir> <bucket-name> <base-path> [--profile profile-name] [--dryrun]"
+    echo "Example: $0 templates my-bucket atlantis/templates --profile myprofile"
     echo ""
     echo "Options:"
     echo "  --profile   Specify AWS profile"
@@ -46,6 +46,10 @@ usage() {
 while [[ $# -gt 0 ]]; do
     case $1 in
         --profile)
+            if [[ -z "$2" || "$2" == --* ]]; then
+                echo "Error: --profile requires a value"
+                exit 1
+            fi
             AWS_PROFILE="$2"
             shift 2
             ;;
@@ -54,20 +58,25 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         *)
-            if [ -z "$BUCKET_NAME" ]; then
+            # Handle positional arguments
+            if [ -z "$SOURCE_DIR" ]; then
+                SOURCE_DIR="$1"
+            elif [ -z "$BUCKET_NAME" ]; then
                 BUCKET_NAME="$1"
             elif [ -z "$BASE_PATH" ]; then
                 BASE_PATH="$1"
-            elif [ "$1" != "--profile" ]; then
-                SOURCE_DIR="$1"
+            else
+                echo "Error: Unexpected argument: $1"
+                exit 1
             fi
             shift
             ;;
     esac
 done
 
-# Check required parameters
-if [ -z "$BUCKET_NAME" ] || [ -z "$BASE_PATH" ]; then
+# Validate required arguments
+if [ -z "$SOURCE_DIR" ] || [ -z "$BUCKET_NAME" ] || [ -z "$BASE_PATH" ]; then
+    echo "Error: Missing required arguments"
     usage
 fi
 
