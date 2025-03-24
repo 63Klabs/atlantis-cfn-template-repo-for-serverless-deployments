@@ -33,7 +33,7 @@ DRYRUN=""
 
 # Function to show usage
 usage() {
-    echo "Usage: $0  <source-dir> <bucket-name> <base-path> [--profile profile-name] [--dryrun]"
+    echo "Usage: $0 <source-dir> <bucket-name> <base-path> [--profile profile-name] [--dryrun]"
     echo "Example: $0 templates my-bucket atlantis/templates --profile myprofile"
     echo ""
     echo "Options:"
