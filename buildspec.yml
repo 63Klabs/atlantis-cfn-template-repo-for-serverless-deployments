@@ -3,7 +3,9 @@ version: 0.2
 env:
   variables:
     SOURCE_DIR: "templates"
-    S3_BASE_PATH: "atlantis"
+    S3_HOST_BASE_PATH: "atlantis"
+    S3_HOST_BUCKET: "63klabs" # Replace with your production bucket
+    S3_HOST_BUCKET_BETA: "63klabz" # Replace with your beta bucket
 
     DRYRUN: "" # set to "--dryrun" if performing dry runs
 
@@ -21,7 +23,10 @@ phases:
   pre_build:
     commands:
 
-      - echo $HOST_BUCKET/$S3_BASE_PATH
+      # if DEPLOY_ENV is not PROD then use BETA bucket
+      - if [ "$DEPLOY_ENV" != "PROD" ]; then export S3_HOST_BUCKET=$S3_HOST_BUCKET_BETA; fi
+
+      - echo $S3_HOST_BUCKET/$S3_HOST_BASE_PATH
       - echo $DRYRUN
 
   build:
@@ -37,25 +42,25 @@ phases:
 
       # Copy template files to host bucket
       - echo "Executing script to sync templates..."
-      - ./scripts/sync_templates.sh $SOURCE_DIR $HOST_BUCKET $S3_BASE_PATH/templates $DRYRUN
+      - ./scripts/sync_templates.sh $SOURCE_DIR $S3_HOST_BUCKET $S3_HOST_BASE_PATH/templates $DRYRUN
       # If you have additional directories you can sync them next as long as you have a unique local and unique remote directory (don't use same as previous othewise it will perform a delete)
-#      - ./scripts/sync_templates.sh custom-templates $HOST_BUCKET $S3_BASE_PATH/custom-templates $DRYRUN
+#      - ./scripts/sync_templates.sh custom-templates $S3_HOST_BUCKET $S3_HOST_BASE_PATH/custom-templates $DRYRUN
 
       # Inventory host bucket templates
       - echo "Executing script to inventory S3..."
-      - ./scripts/s3_inventory.py $HOST_BUCKET $S3_BASE_PATH/templates --output-dir outputs
-      - [ -z "$DRYRUN" ] && aws s3 cp ./outputs/inventory_atlantis_templates.json s3://$HOST_BUCKET/$S3_BASE_PATH/templates/inventory.json || echo "[DRYRUN] Would copy ./outputs/inventory_atlantis_templates.json to s3://$HOST_BUCKET/$S3_BASE_PATH/templates"
-      - [ -z "$DRYRUN" ] && aws s3 cp ./outputs/inventory_atlantis_templates.txt s3://$HOST_BUCKET/$S3_BASE_PATH/templates/inventory.txt || echo "[DRYRUN] Would copy ./outputs/inventory_atlantis_templates.txt to s3://$HOST_BUCKET/$S3_BASE_PATH/templates"
+      - ./scripts/s3_inventory.py $S3_HOST_BUCKET $S3_HOST_BASE_PATH/templates --output-dir outputs
+      - [ -z "$DRYRUN" ] && aws s3 cp ./outputs/inventory_atlantis_templates.json s3://$S3_HOST_BUCKET/$S3_HOST_BASE_PATH/templates/inventory.json || echo "[DRYRUN] Would copy ./outputs/inventory_atlantis_templates.json to s3://$S3_HOST_BUCKET/$S3_HOST_BASE_PATH/templates"
+      - [ -z "$DRYRUN" ] && aws s3 cp ./outputs/inventory_atlantis_templates.txt s3://$S3_HOST_BUCKET/$S3_HOST_BASE_PATH/templates/inventory.txt || echo "[DRYRUN] Would copy ./outputs/inventory_atlantis_templates.txt to s3://$S3_HOST_BUCKET/$S3_HOST_BASE_PATH/templates"
 
       # Send sharable scripts to host bucket
       - echo "Executing script to upload scripts..."
-      - ./scripts/upload_scripts.sh $HOST_BUCKET $S3_BASE_PATH/utilities scripts $DRYRUN
+      - ./scripts/upload_scripts.sh $S3_HOST_BUCKET $S3_HOST_BASE_PATH/utilities scripts $DRYRUN
 
       # Inventory host bucket utilities
       - echo "Executing script to inventory S3..."
-      - ./scripts/s3_inventory.py $HOST_BUCKET $S3_BASE_PATH/utilities --output-dir outputs
-      - [ -z "$DRYRUN" ] && aws s3 cp ./outputs/inventory_atlantis_utilities.json s3://$HOST_BUCKET/$S3_BASE_PATH/utilities/inventory.json || echo "[DRYRUN] Would copy ./outputs/inventory_atlantis_utilities.json to s3://$HOST_BUCKET/$S3_BASE_PATH/utilities"
-      - [ -z "$DRYRUN" ] && aws s3 cp ./outputs/inventory_atlantis_utilities.txt s3://$HOST_BUCKET/$S3_BASE_PATH/utilities/inventory.txt || echo "[DRYRUN] Would copy ./outputs/inventory_atlantis_utilities.txt to s3://$HOST_BUCKET/$S3_BASE_PATH/utilities"
+      - ./scripts/s3_inventory.py $S3_HOST_BUCKET $S3_HOST_BASE_PATH/utilities --output-dir outputs
+      - [ -z "$DRYRUN" ] && aws s3 cp ./outputs/inventory_atlantis_utilities.json s3://$S3_HOST_BUCKET/$S3_HOST_BASE_PATH/utilities/inventory.json || echo "[DRYRUN] Would copy ./outputs/inventory_atlantis_utilities.json to s3://$S3_HOST_BUCKET/$S3_HOST_BASE_PATH/utilities"
+      - [ -z "$DRYRUN" ] && aws s3 cp ./outputs/inventory_atlantis_utilities.txt s3://$S3_HOST_BUCKET/$S3_HOST_BASE_PATH/utilities/inventory.txt || echo "[DRYRUN] Would copy ./outputs/inventory_atlantis_utilities.txt to s3://$S3_HOST_BUCKET/$S3_HOST_BASE_PATH/utilities"
 
 artifacts:
   files:
