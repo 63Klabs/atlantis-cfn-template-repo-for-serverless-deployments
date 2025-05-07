@@ -8,7 +8,7 @@ Description: "Shared storage for Lambda applications utilizing Cache-Data (S3/Dy
 # Version: v0.0.12/2024-10-22
 
 # Documentation, Issues/Feature Requests, Latest Updates, and Security Reports on GitHub:
-# https://github.com/chadkluck/atlantis-for-aws-sam-deployments/
+# https://github.com/63klabs/atlantis-for-aws-sam-deployments/
 
 
 # =============================================================================

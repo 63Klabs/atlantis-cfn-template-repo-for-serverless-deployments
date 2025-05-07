@@ -8,7 +8,7 @@ Description: "CodePipeline for Automated Deployments from repository using only 
 # Version: v2.0.1/2025-01-25
 
 # Documentation, Issues/Feature Requests, Latest Updates, and Security Reports on GitHub:
-# https://github.com/chadkluck/atlantis-cfn-template-repo-for-serverless-deployments/
+# https://github.com/63klabs/atlantis-cfn-template-repo-for-serverless-deployments/
 
 # Creates an AWS CodePipeline that is triggered when a watched branch
 # receives a new commit. Uses CodeBuild. DOES NOT have a CloudFormation stage.

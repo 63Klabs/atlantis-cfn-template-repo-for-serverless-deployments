@@ -8,7 +8,7 @@ Description: "Prefix-based IAM Role and Managed Policy for Atlantis Service Role
 # Version: v0.0.14/2025-02-25
 
 # Documentation, Issues/Feature Requests, Latest Updates, and Security Reports on GitHub:
-# https://github.com/chadkluck/atlantis-for-aws-sam-deployments/
+# https://github.com/63klabs/atlantis-for-aws-sam-deployments/
 
 
 # =============================================================================

@@ -8,7 +8,7 @@ Description: "CodePipeline for Automated Deployments from repository - Deployed 
 # Version: v2.0.13/2025-01-15
 
 # Documentation, Issues/Feature Requests, Latest Updates, and Security Reports on GitHub:
-# https://github.com/chadkluck/atlantis-for-aws-sam-deployments/
+# https://github.com/63klabs/atlantis-for-aws-sam-deployments/
 
 # Creates an AWS CodePipeline that is triggered when a watched branch
 # receives a new commit. Uses CodeBuild and then CloudFormation to deploy.

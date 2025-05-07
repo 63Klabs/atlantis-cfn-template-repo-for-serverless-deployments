@@ -4,7 +4,7 @@ Scripts and structure for managing templates and publishing to your organization
 
 The intended users of this repository are AWS account admins, architects, and platform engineers. Those performing developer and software engineer roles will need read access to the S3 bucket in order to include the templates and modules in their deployments.
 
-To deploy these templates, use [Atlantis CloudFormation Configuration Repository for Serverless Deployments](https://github.com/chadkluck/atlantis-cfn-configuration-repo-for-serverless-deployments) available on GitHub.
+To deploy these templates, use [Atlantis CloudFormation Configuration Repository for Serverless Deployments](https://github.com/63klabs/atlantis-cfn-configuration-repo-for-serverless-deployments) available on GitHub.
 
 ## Deploy to your own S3 Template Bucket
 
