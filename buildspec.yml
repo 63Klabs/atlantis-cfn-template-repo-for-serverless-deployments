@@ -4,9 +4,9 @@ env:
   variables:
     SOURCE_DIR: "templates"
     S3_HOST_BASE_PATH: "atlantis"
-    S3_HOST_BUCKET: "63klabs" # Replace with your production bucket
-    S3_HOST_BUCKET_BETA: "63klabz" # Replace with your beta bucket
-
+    S3_HOST_BUCKET_PROD: "63klabs" # Production bucket
+    S3_HOST_BUCKET_BETA: "63klabz" # Beta bucket
+    S3_HOST_BUCKET: "${S3_HOST_BUCKET_PROD}" # Default to production bucket
     DRYRUN: "" # set to "--dryrun" if performing dry runs
 
 phases:
@@ -14,29 +14,22 @@ phases:
     runtime-versions:
       nodejs: latest
     commands:
-      - pwd
       - pip install --upgrade awscli boto3
-
-      - chmod +x ./scripts/*.sh
-      - chmod +x ./scripts/*.py
+      - chmod +x ./scripts/*.{sh,py}
 
   pre_build:
     commands:
-
-      # if DEPLOY_ENV is not PROD then use BETA bucket
-      - if [ "$DEPLOY_ENV" != "PROD" ]; then export S3_HOST_BUCKET=$S3_HOST_BUCKET_BETA; fi
-
+      # Set bucket based on deployment environment in a single command
+      - export S3_HOST_BUCKET=$([ "$DEPLOY_ENV" != "PROD" ] && echo "$S3_HOST_BUCKET_BETA" || echo "$S3_HOST_BUCKET_PROD")
       - echo $S3_HOST_BUCKET/$S3_HOST_BASE_PATH
       - echo $DRYRUN
 
   build:
     commands:
+      - echo "Build phase started at $(date)"
 
   post_build:
     commands:
-
-      - pwd
-
       # We use versioning on the buckets so that we can specify a specific version of the template to use
       # Therefore, so we do not create extra versions, we will use only copy changed files.
 
@@ -49,8 +42,13 @@ phases:
       # Inventory host bucket templates
       - echo "Executing script to inventory S3..."
       - ./scripts/s3_inventory.py $S3_HOST_BUCKET $S3_HOST_BASE_PATH/templates --output-dir outputs
-      - [ -z "$DRYRUN" ] && aws s3 cp ./outputs/inventory_atlantis_templates.json s3://$S3_HOST_BUCKET/$S3_HOST_BASE_PATH/templates/inventory.json || echo "[DRYRUN] Would copy ./outputs/inventory_atlantis_templates.json to s3://$S3_HOST_BUCKET/$S3_HOST_BASE_PATH/templates"
-      - [ -z "$DRYRUN" ] && aws s3 cp ./outputs/inventory_atlantis_templates.txt s3://$S3_HOST_BUCKET/$S3_HOST_BASE_PATH/templates/inventory.txt || echo "[DRYRUN] Would copy ./outputs/inventory_atlantis_templates.txt to s3://$S3_HOST_BUCKET/$S3_HOST_BASE_PATH/templates"
+      - |
+        if [ -z "$DRYRUN" ]; then
+          aws s3 cp ./outputs/inventory_atlantis_templates.json s3://$S3_HOST_BUCKET/$S3_HOST_BASE_PATH/templates/inventory.json
+          aws s3 cp ./outputs/inventory_atlantis_templates.txt s3://$S3_HOST_BUCKET/$S3_HOST_BASE_PATH/templates/inventory.txt
+        else
+          echo "[DRYRUN] Would copy inventory files to s3://$S3_HOST_BUCKET/$S3_HOST_BASE_PATH/templates/"
+        fi
 
       # Send sharable scripts to host bucket
       - echo "Executing script to upload scripts..."
@@ -59,8 +57,13 @@ phases:
       # Inventory host bucket utilities
       - echo "Executing script to inventory S3..."
       - ./scripts/s3_inventory.py $S3_HOST_BUCKET $S3_HOST_BASE_PATH/utilities --output-dir outputs
-      - [ -z "$DRYRUN" ] && aws s3 cp ./outputs/inventory_atlantis_utilities.json s3://$S3_HOST_BUCKET/$S3_HOST_BASE_PATH/utilities/inventory.json || echo "[DRYRUN] Would copy ./outputs/inventory_atlantis_utilities.json to s3://$S3_HOST_BUCKET/$S3_HOST_BASE_PATH/utilities"
-      - [ -z "$DRYRUN" ] && aws s3 cp ./outputs/inventory_atlantis_utilities.txt s3://$S3_HOST_BUCKET/$S3_HOST_BASE_PATH/utilities/inventory.txt || echo "[DRYRUN] Would copy ./outputs/inventory_atlantis_utilities.txt to s3://$S3_HOST_BUCKET/$S3_HOST_BASE_PATH/utilities"
+      - |
+        if [ -z "$DRYRUN" ]; then
+          aws s3 cp ./outputs/inventory_atlantis_utilities.json s3://$S3_HOST_BUCKET/$S3_HOST_BASE_PATH/utilities/inventory.json
+          aws s3 cp ./outputs/inventory_atlantis_utilities.txt s3://$S3_HOST_BUCKET/$S3_HOST_BASE_PATH/utilities/inventory.txt
+        else
+          echo "[DRYRUN] Would copy inventory files to s3://$S3_HOST_BUCKET/$S3_HOST_BASE_PATH/utilities/"
+        fi
 
 artifacts:
   files:
