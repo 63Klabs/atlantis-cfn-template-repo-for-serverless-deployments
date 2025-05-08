@@ -16,7 +16,6 @@ phases:
       nodejs: latest
     commands:
       - pip install --upgrade awscli boto3
-      - chmod +x ./scripts/*.{sh,py}
 
   pre_build:
     commands:
@@ -30,7 +29,6 @@ phases:
 
   post_build:
     commands:
-
     
       - export S3_HOST_BASE_PATH_UTILITIES="${S3_HOST_BASE_PATH}utilities/v2/"
       - export S3_HOST_BASE_PATH_TEMPLATES="${S3_HOST_BASE_PATH}templates/"
@@ -40,12 +38,14 @@ phases:
 
       # Copy template files to host bucket
       - echo "Executing script to sync templates..."
+      - chmod +x ./scripts/sync_templates.sh
       - ./scripts/sync_templates.sh $SOURCE_DIR $S3_HOST_BUCKET $S3_HOST_BASE_PATH_TEMPLATES $DRYRUN
       # If you have additional directories you can sync them next as long as you have a unique local and unique remote directory (don't use same as previous othewise it will perform a delete)
 #      - ./scripts/sync_templates.sh custom-templates $S3_HOST_BUCKET $S3_HOST_BASE_PATH/custom-templates $DRYRUN
 
       # Send sharable scripts to host bucket
       - echo "Executing script to upload scripts..."
+      - chmod +x ./scripts/upload_scripts.sh
       - ./scripts/upload_scripts.sh $S3_HOST_BUCKET $S3_HOST_BASE_PATH_UTILITIES scripts $DRYRUN
 
 artifacts:
