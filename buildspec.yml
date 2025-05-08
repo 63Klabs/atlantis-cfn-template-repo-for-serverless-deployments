@@ -64,8 +64,8 @@ phases:
       - ./scripts/s3_inventory.py $S3_HOST_BUCKET $S3_HOST_BASE_PATH_UTILITIES --output-dir outputs
       - |
         if [ -z "$DRYRUN" ]; then
-          aws s3 cp ./outputs/inventory_atlantis_utilities.json s3://${S3_HOST_BUCKET}${S3_HOST_BASE_PATH_UTILITIES}inventory.json
-          aws s3 cp ./outputs/inventory_atlantis_utilities.txt s3://${S3_HOST_BUCKET}${S3_HOST_BASE_PATH_UTILITIES}inventory.txt
+          aws s3 cp ./outputs/inventory_atlantis_utilities_v2.json s3://${S3_HOST_BUCKET}${S3_HOST_BASE_PATH_UTILITIES}inventory.json
+          aws s3 cp ./outputs/inventory_atlantis_utilities_v2.txt s3://${S3_HOST_BUCKET}${S3_HOST_BASE_PATH_UTILITIES}inventory.txt
         else
           echo "[DRYRUN] Would copy inventory files to s3://${S3_HOST_BUCKET}${S3_HOST_BASE_PATH_UTILITIES}"
         fi
