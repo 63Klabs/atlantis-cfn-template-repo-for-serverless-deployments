@@ -14,9 +14,9 @@ env:
   variables:
     SOURCE_DIR: "templates"
     S3_HOST_BASE_PATH: "atlantis"
-    S3_HOST_BUCKET_PROD: "${HOST_BUCKET}" # Production bucket
+    S3_HOST_BUCKET_PROD: "${HOST_BUCKET}" # Production bucket 
     S3_HOST_BUCKET_BETA: "${HOST_BUCKET}" # Beta bucket
-    S3_HOST_BUCKET: "${HOST_BUCKET}" # Default to production bucket
+    S3_HOST_BUCKET: "${HOST_BUCKET}" # Default to production or beta bucket (or use env var HOST_BUCKET)
     DRYRUN: "" # set to "--dryrun" if performing dry runs
 
 phases:
