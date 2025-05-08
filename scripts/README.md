@@ -48,7 +48,17 @@ Recommended Pipeline Template: [templates/v2/pipeline/template-pipeline-two-stag
 
 The [.github/workflows/deploy.yml](../.github/workflows/deploy.yml) can be used with GitHub Actions.
 
-You will need to set `secrets.HOST_BUCKET` and add a github-actions-service IAM role to your account granting access for your repository to copy files to S3.
+You will need to add a github-actions-service IAM role to your account granting access for your repository to copy files to S3.
+
+Set the following GitHub Actions secrets and variables for your repository:
+
+- Secrets:
+  - `AWS_RELEASE_ACCT`
+  - `AWS_RELEASE_REGION`
+- Variables:
+  - `AWS_RELEASE_BUCKET` : bucket to upload artifact to
+  - `AWS_RELEASE_BUCKET_UTILS_PATH` : Must be single `/` or begin and end with `/` (suggested: `/atlantis/utilities/v2/`)
+  - `AWS_RELEASE_BUCKET_TEMPLATES_PATH` : Must be single `/` or begin and end with `/` (suggested: `/atlantis/templates/`) (`v2` is already in source path)
 
 ## Deployment Scripts
 

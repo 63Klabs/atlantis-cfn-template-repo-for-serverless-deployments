@@ -1,17 +1,39 @@
 name: Deploy to S3
 
+# This script prepares templates and uploads to s3
+# An IAM role must present to provide permissions 
+
+# Set the following GitHub Actions secrets and variables for your repository:
+# Secrets:
+#   AWS_RELEASE_ACCT
+#   AWS_RELEASE_REGION
+# Variables:
+#   AWS_RELEASE_BUCKET - bucket to upload artifact to
+#   AWS_RELEASE_BUCKET_UTILS_PATH - Must be single / or begin and end with / (suggested: /atlantis/utils/)
+#   AWS_RELEASE_BUCKET_TEMPLATES_PATH - Must be single / or begin and end with / (suggested: /atlantis/templates/)
+#
+
 on:
-  push:
-    branches:
-      - main
+  release:
+    types: [published]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
+    permissions:
+      id-token: write
+      contents: read
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_RELEASE_ACCT }}:role/github-actions-role # Must be set up in the target account
+          aws-region: ${{ secrets.AWS_RELEASE_REGION }}
 
       - name: Set up Python
         uses: actions/setup-python@v2
@@ -25,19 +47,19 @@ jobs:
       - name: Sync templates
         run: |
           chmod +x ./scripts/sync_templates.sh
-          ./scripts/sync_templates.sh templates ${{ secrets.HOST_BUCKET }} atlantis/templates
+          ./scripts/sync_templates.sh templates ${{ vars.AWS_RELEASE_BUCKET }} ${{ vars.AWS_RELEASE_BUCKET_TEMPLATES_PATH }}
 
       - name: Inventory S3 templates
         run: |
           chmod +x ./scripts/s3_inventory.py
-          ./scripts/s3_inventory.py ${{ secrets.HOST_BUCKET }} atlantis/templates --output-dir outputs
+          ./scripts/s3_inventory.py ${{ vars.AWS_RELEASE_BUCKET }} ${{ vars.AWS_RELEASE_BUCKET_TEMPLATES_PATH }} --output-dir outputs
 
       - name: Upload inventory files
         run: |
-          aws s3 cp ./outputs/inventory_atlantis_templates.json s3://${{ secrets.HOST_BUCKET }}/atlantis/templates/inventory.json
-          aws s3 cp ./outputs/inventory_atlantis_templates.txt s3://${{ secrets.HOST_BUCKET }}/atlantis/templates/inventory.txt
+          aws s3 cp ./outputs/inventory_atlantis_templates.json s3://${{ vars.AWS_RELEASE_BUCKET }}${{ vars.AWS_RELEASE_BUCKET_TEMPLATES_PATH }}/inventory.json
+          aws s3 cp ./outputs/inventory_atlantis_templates.txt s3://${{ vars.AWS_RELEASE_BUCKET }}${{ vars.AWS_RELEASE_BUCKET_TEMPLATES_PATH }}/inventory.txt
 
       - name: Upload utility scripts
         run: |
           chmod +x ./scripts/upload_scripts.sh
-          ./scripts/upload_scripts.sh ${{ secrets.HOST_BUCKET }} atlantis/utilities scripts
+          ./scripts/upload_scripts.sh ${{ vars.AWS_RELEASE_BUCKET }}${{ vars.AWS_RELEASE_BUCKET_UTILS_PATH }} scripts
