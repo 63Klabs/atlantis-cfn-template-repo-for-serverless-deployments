@@ -1,6 +1,8 @@
 # Atlantis Template Repository for Serverless Deployments using AWS SAM and CloudFormation
 
-Scripts and structure for managing templates and publishing to your organization's infrastructure module and template S3 bucket.
+- Create a central S3 location to obtain CloudFormation templates for deployments.
+- Provides scripts and structure for managing and publishing your organization's CloudFormation templates for SAM deployments.
+- Can be used to `include` from S3 location in other templates and with [Atlantis CloudFormation configuration for SAM](https://github.com/63Klabs/atlantis-cfn-configuration-repo-for-serverless-deployments/settings/variables/actions) to facilitate deployments. 
 
 The intended users of this repository are AWS account admins, architects, and platform engineers. Those performing developer and software engineer roles, and CloudFormation executions utilizing the templates, will need read access to the S3 bucket in order to include the templates and modules during deployments.
 

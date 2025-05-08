@@ -32,7 +32,7 @@ phases:
     commands:
 
     
-      - export S3_HOST_BASE_PATH_UTILS="${S3_HOST_BASE_PATH}utilities/v2/"
+      - export S3_HOST_BASE_PATH_UTILITIES="${S3_HOST_BASE_PATH}utilities/v2/"
       - export S3_HOST_BASE_PATH_TEMPLATES="${S3_HOST_BASE_PATH}templates/"
 
       # We use versioning on the buckets so that we can specify a specific version of the template to use
