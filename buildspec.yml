@@ -44,31 +44,9 @@ phases:
       # If you have additional directories you can sync them next as long as you have a unique local and unique remote directory (don't use same as previous othewise it will perform a delete)
 #      - ./scripts/sync_templates.sh custom-templates $S3_HOST_BUCKET $S3_HOST_BASE_PATH/custom-templates $DRYRUN
 
-      # Inventory host bucket templates
-      - echo "Executing script to inventory S3..."
-      - ./scripts/s3_inventory.py $S3_HOST_BUCKET $S3_HOST_BASE_PATH_TEMPLATES --output-dir outputs
-      - |
-        if [ -z "$DRYRUN" ]; then
-          aws s3 cp ./outputs/inventory_atlantis_templates.json s3://${S3_HOST_BUCKET}${S3_HOST_BASE_PATH_TEMPLATES}inventory.json
-          aws s3 cp ./outputs/inventory_atlantis_templates.txt s3://${S3_HOST_BUCKET}${S3_HOST_BASE_PATH_TEMPLATES}inventory.txt
-        else
-          echo "[DRYRUN] Would copy inventory files to s3://${S3_HOST_BUCKET}${S3_HOST_BASE_PATH_TEMPLATES}"
-        fi
-
       # Send sharable scripts to host bucket
       - echo "Executing script to upload scripts..."
       - ./scripts/upload_scripts.sh $S3_HOST_BUCKET $S3_HOST_BASE_PATH_UTILITIES scripts $DRYRUN
-
-      # Inventory host bucket utilities
-      - echo "Executing script to inventory S3..."
-      - ./scripts/s3_inventory.py $S3_HOST_BUCKET $S3_HOST_BASE_PATH_UTILITIES --output-dir outputs
-      - |
-        if [ -z "$DRYRUN" ]; then
-          aws s3 cp ./outputs/inventory_atlantis_utilities_v2.json s3://${S3_HOST_BUCKET}${S3_HOST_BASE_PATH_UTILITIES}inventory.json
-          aws s3 cp ./outputs/inventory_atlantis_utilities_v2.txt s3://${S3_HOST_BUCKET}${S3_HOST_BASE_PATH_UTILITIES}inventory.txt
-        else
-          echo "[DRYRUN] Would copy inventory files to s3://${S3_HOST_BUCKET}${S3_HOST_BASE_PATH_UTILITIES}"
-        fi
 
 artifacts:
   files:

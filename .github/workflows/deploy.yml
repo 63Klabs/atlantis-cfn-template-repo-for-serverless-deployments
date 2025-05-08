@@ -49,27 +49,7 @@ jobs:
           chmod +x ./scripts/sync_templates.sh
           ./scripts/sync_templates.sh templates ${{ vars.AWS_RELEASE_BUCKET }} ${{ vars.AWS_RELEASE_BUCKET_TEMPLATES_PATH }}
 
-      - name: Inventory S3 templates
-        run: |
-          chmod +x ./scripts/s3_inventory.py
-          ./scripts/s3_inventory.py ${{ vars.AWS_RELEASE_BUCKET }} ${{ vars.AWS_RELEASE_BUCKET_TEMPLATES_PATH }} --output-dir outputs
-
-      - name: Upload template inventory files
-        run: |
-          aws s3 cp ./outputs/inventory_atlantis_templates.json s3://${{ vars.AWS_RELEASE_BUCKET }}${{ vars.AWS_RELEASE_BUCKET_TEMPLATES_PATH }}/inventory.json
-          aws s3 cp ./outputs/inventory_atlantis_templates.txt s3://${{ vars.AWS_RELEASE_BUCKET }}${{ vars.AWS_RELEASE_BUCKET_TEMPLATES_PATH }}/inventory.txt
-
       - name: Upload utility scripts
         run: |
           chmod +x ./scripts/upload_scripts.sh
           ./scripts/upload_scripts.sh ${{ vars.AWS_RELEASE_BUCKET }}${{ vars.AWS_RELEASE_BUCKET_UTILS_PATH }} scripts
-
-      - name: Inventory S3 utilities
-        run: |
-          chmod +x ./scripts/s3_inventory.py
-          ./scripts/s3_inventory.py ${{ vars.AWS_RELEASE_BUCKET }} ${{ vars.AWS_RELEASE_BUCKET_UTILS_PATH }} --output-dir outputs
-
-      - name: Upload utility inventory files
-        run: |
-          aws s3 cp ./outputs/inventory_atlantis_utilities_v2.json s3://${{ vars.AWS_RELEASE_BUCKET }}${{ vars.AWS_RELEASE_BUCKET_UTILS_PATH }}/inventory.json
-          aws s3 cp ./outputs/inventory_atlantis_utilities_v2.txt s3://${{ vars.AWS_RELEASE_BUCKET }}${{ vars.AWS_RELEASE_BUCKET_UTILS_PATH }}/inventory.txt
