@@ -8,7 +8,6 @@ env:
     # HOST_BUCKET: "s3-bucket-name" # should already be set in CodeBuild env
     SOURCE_DIR: "templates"
     S3_HOST_BASE_PATH: "/atlantis/" # Must be single / or begin and end with / (suggested: /atlantis/)
-    S3_HOST_BUCKET: ${HOST_BUCKET}
     DRYRUN: "" # set to "--dryrun" if performing dry runs
 
 phases:
@@ -21,6 +20,7 @@ phases:
 
   pre_build:
     commands:
+      - export S3_HOST_BUCKET=$HOST_BUCKET
       - echo $S3_HOST_BUCKET$S3_HOST_BASE_PATH
       - echo $DRYRUN
 
