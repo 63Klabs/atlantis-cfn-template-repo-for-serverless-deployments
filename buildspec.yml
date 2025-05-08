@@ -1,23 +1,14 @@
 version: 0.2
 
 # Recommended Pipeline Template "templates/v2/pipeline/template-pipeline-two-stage"
-
-# Note: This is made for a two instance environment (TEST and PROD)
-# Leave HOST buckets as ${HOST_BUCKET} if using the two stage pipeline above or if your deployment has a HOST_BUCKET variable.
-# Change _PROD and _BETA ONLY if you you not have a HOST_BUCKET environment variable.
-# Again, if using template-pipeline-two-stage for your pipeline you DO have a HOST_BUCKET env variable.
-
-# Assumes HOST_BUCKET and DEPLOY_ENV are already set in environment
+# Assumes HOST_BUCKET is already set in CodeBuild environment variables
 
 env:
   variables:
-    # DEPLOY_ENV: "TEST" # Set to PROD or TEST - should already be set in build/deploy env
-    # HOST_BUCKET: "s3-bucket-name" # should already be set in build/deploy env
+    # HOST_BUCKET: "s3-bucket-name" # should already be set in CodeBuild env
     SOURCE_DIR: "templates"
     S3_HOST_BASE_PATH: "atlantis"
-    S3_HOST_BUCKET_PROD: "${HOST_BUCKET}" # Production bucket 
-    S3_HOST_BUCKET_TEST: "${HOST_BUCKET}" # Test bucket
-    S3_HOST_BUCKET: "${HOST_BUCKET}" # Default to production or beta bucket (or use env var HOST_BUCKET)
+    S3_HOST_BUCKET: "${HOST_BUCKET}"
     DRYRUN: "" # set to "--dryrun" if performing dry runs
 
 phases:
@@ -30,8 +21,6 @@ phases:
 
   pre_build:
     commands:
-      # Set bucket based on deployment environment in a single command
-      - export S3_HOST_BUCKET=$([ "$DEPLOY_ENV" != "PROD" ] && echo "$S3_HOST_BUCKET_TEST" || echo "$S3_HOST_BUCKET_PROD")
       - echo $S3_HOST_BUCKET/$S3_HOST_BASE_PATH
       - echo $DRYRUN
 

@@ -36,13 +36,19 @@ export DRYRUN="" # set to "--dryrun" if performing dry runs
 
 You can also utilize Docker and run the buildspec file directly. See [AWS Documentation: Run builds locally with the AWS CodeBuild agent](https://docs.aws.amazon.com/codebuild/latest/userguide/use-codebuild-agent.html).
 
-Ensure the `HOST_BUCKET` and `DEPLOY_ENV` environment variables are set (all others are set in the buildspec `env.variables` section).
+Ensure the `HOST_BUCKET` environment variables are set (all others are set in the buildspec `env.variables` section).
 
-### Automated Deployments
+### Automated Deployment using AWS CodePipeline using CodeBuild
 
 The buildspec file can be used for automated deployments and expects `HOST_BUCKET` and `DEPLOY_ENV` to be already set in the CodeBuild environment.
 
 Recommended Pipeline Template: [templates/v2/pipeline/template-pipeline-two-stage](../templates/v2/pipeline/template-pipeline-two-stage.yml)
+
+### Automated Deployment using GitHub Actions
+
+The [.github/workflows/deploy.yml](../.github/workflows/deploy.yml) can be used with GitHub Actions.
+
+You will need to set `secrets.HOST_BUCKET` and add a github-actions-service IAM role to your account granting access for your repository to copy files to S3.
 
 ## Deployment Scripts
 

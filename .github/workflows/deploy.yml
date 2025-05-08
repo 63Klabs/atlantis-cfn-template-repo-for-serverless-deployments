@@ -1,0 +1,43 @@
+name: Deploy to S3
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+
+      - name: Install AWS CLI
+        run: |
+          pip install --upgrade awscli boto3
+
+      - name: Sync templates
+        run: |
+          chmod +x ./scripts/sync_templates.sh
+          ./scripts/sync_templates.sh templates ${{ secrets.HOST_BUCKET }} atlantis/templates
+
+      - name: Inventory S3 templates
+        run: |
+          chmod +x ./scripts/s3_inventory.py
+          ./scripts/s3_inventory.py ${{ secrets.HOST_BUCKET }} atlantis/templates --output-dir outputs
+
+      - name: Upload inventory files
+        run: |
+          aws s3 cp ./outputs/inventory_atlantis_templates.json s3://${{ secrets.HOST_BUCKET }}/atlantis/templates/inventory.json
+          aws s3 cp ./outputs/inventory_atlantis_templates.txt s3://${{ secrets.HOST_BUCKET }}/atlantis/templates/inventory.txt
+
+      - name: Upload utility scripts
+        run: |
+          chmod +x ./scripts/upload_scripts.sh
+          ./scripts/upload_scripts.sh ${{ secrets.HOST_BUCKET }} atlantis/utilities scripts
