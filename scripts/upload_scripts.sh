@@ -4,16 +4,16 @@
 # chmod +x upload_scripts.sh
 
 # Basic usage
-# ./upload_scripts.sh my-bucket atlantis/utilities
+# ./upload_scripts.sh my-bucket /atlantis/utilities/
 
 # Specify different source directory
-# ./upload_scripts.sh my-bucket atlantis/utilities path/to/scripts
+# ./upload_scripts.sh my-bucket /atlantis/utilities/ path/to/scripts
 
 # With AWS profile
-# ./upload_scripts.sh my-bucket atlantis/utilities scripts --profile myprofile
+# ./upload_scripts.sh my-bucket /atlantis/utilities/ scripts --profile myprofile
 
 # With dryrun
-# ./upload_scripts.sh my-bucket atlantis/utilities --dryrun
+# ./upload_scripts.sh my-bucket /atlantis/utilities/ --dryrun
 
 set -e  # Exit on error
 
@@ -110,7 +110,7 @@ fi
 echo "Checking if file exists in S3..."
 REMOTE_ETAG=$($AWS_CMD s3api head-object \
     --bucket "$BUCKET_NAME" \
-    --key "$BASE_PATH/$ZIP_NAME" \
+    --key "${BASE_PATH}${ZIP_NAME}" \
     --query 'ETag' \
     --output text 2>/dev/null || echo "none")
 
@@ -119,11 +119,11 @@ echo "Remote file hash: $REMOTE_ETAG"
 # Compare ETags and upload if different
 if [ "$LOCAL_ETAG" != "$REMOTE_ETAG" ]; then
     if [ -n "$DRYRUN" ]; then
-        echo "[DRYRUN] Would upload $ZIP_NAME to s3://$BUCKET_NAME/$BASE_PATH/$ZIP_NAME"
+        echo "[DRYRUN] Would upload $ZIP_NAME to s3://${BUCKET_NAME}${BASE_PATH}${ZIP_NAME}"
         echo "[DRYRUN] File has changed - Local hash: $LOCAL_ETAG, Remote hash: $REMOTE_ETAG"
     else
         echo "File has changed, uploading to S3..."
-        $AWS_CMD s3 cp "$ZIP_NAME" "s3://$BUCKET_NAME/$BASE_PATH/$ZIP_NAME"
+        $AWS_CMD s3 cp "$ZIP_NAME" "s3://${BUCKET_NAME}${BASE_PATH}${ZIP_NAME}"
         if [ $? -eq 0 ]; then
             echo "Upload successful"
         else

@@ -234,7 +234,7 @@ def generate_json_inventory(objects, json_file):
     for key, versions in sorted(objects.items()):
         inventory['objects'][key] = [
             {k: v.isoformat() if isinstance(v, datetime) else v 
-             for k, v in version.items()}
+                for k, v in version.items()}
             for version in versions
         ]
     
@@ -273,7 +273,8 @@ def main():
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     
     # Define all file paths before try block
-    path_suffix = args.path.replace('/', '_').rstrip('_') if args.path else 'full'
+    path = args.path.strip('/') + '/'
+    path_suffix = path.replace('/', '_').rstrip('_') if args.path else 'full'
     inventory_file = os.path.join(args.output_dir, f's3_inventory_{path_suffix}_{timestamp}.csv')
     summary_file = os.path.join(args.output_dir, f's3_inventory_summary_{path_suffix}_{timestamp}.txt')
     error_log = os.path.join(args.output_dir, f's3_inventory_errors_{timestamp}.log')
@@ -292,13 +293,13 @@ def main():
         
         print(f"Starting inventory of bucket: {args.bucket}")
         if args.path:
-            print(f"Inventorying path: {args.path}")
+            print(f"Inventorying path: {path}")
         
         # Get bucket inventory
-        versions, delete_markers = get_bucket_inventory(s3_client, args.bucket, args.path)
+        versions, delete_markers = get_bucket_inventory(s3_client, args.bucket, path)
         
         if not versions and not delete_markers:
-            print(f"No objects found in path: {args.path}")
+            print(f"No objects found in path: {path}")
             return 0
         
         # Write inventory to CSV

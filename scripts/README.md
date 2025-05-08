@@ -27,7 +27,7 @@ Commands to execute the scripts are included in the `post_build` section of the 
 ```bash
 export AWS_PROFILE="your-profile" # if not using default so you don't need to set --profile flag after commands
 export SOURCE_DIR="templates"
-export S3_HOST_BASE_PATH="atlantis"
+export S3_HOST_BASE_PATH="/atlantis/" # Must be single / or begin and end with / (suggested: /atlantis/)
 export S3_HOST_BUCKET="s3-bucket-name"
 export DRYRUN="" # set to "--dryrun" if performing dry runs
 ```

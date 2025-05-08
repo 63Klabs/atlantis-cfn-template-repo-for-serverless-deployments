@@ -103,10 +103,10 @@ else
     echo "Using default AWS credentials"
 fi
 
-echo "Syncing files from $SOURCE_DIR to s3://$BUCKET_NAME/$BASE_PATH..."
+echo "Syncing files from $SOURCE_DIR to s3://${BUCKET_NAME}${BASE_PATH}..."
 
 # Perform the sync operation
-$AWS_CMD s3 sync "./$SOURCE_DIR" "s3://$BUCKET_NAME/$BASE_PATH" \
+$AWS_CMD s3 sync "./$SOURCE_DIR" "s3://${BUCKET_NAME}${BASE_PATH}" \
     --delete \
     --exact-timestamps \
     --size-only \

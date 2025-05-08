@@ -7,8 +7,8 @@ env:
   variables:
     # HOST_BUCKET: "s3-bucket-name" # should already be set in CodeBuild env
     SOURCE_DIR: "templates"
-    S3_HOST_BASE_PATH: "atlantis"
-    S3_HOST_BUCKET: "${HOST_BUCKET}"
+    S3_HOST_BASE_PATH: "/atlantis/" # Must be single / or begin and end with / (suggested: /atlantis/)
+    S3_HOST_BUCKET: HOST_BUCKET
     DRYRUN: "" # set to "--dryrun" if performing dry runs
 
 phases:
@@ -21,7 +21,7 @@ phases:
 
   pre_build:
     commands:
-      - echo $S3_HOST_BUCKET/$S3_HOST_BASE_PATH
+      - echo $S3_HOST_BUCKET$S3_HOST_BASE_PATH
       - echo $DRYRUN
 
   build:
@@ -30,39 +30,44 @@ phases:
 
   post_build:
     commands:
+
+    
+      - export S3_HOST_BASE_PATH_UTILS="${S3_HOST_BASE_PATH}utilities/"
+      - export S3_HOST_BASE_PATH_TEMPLATES="${S3_HOST_BASE_PATH}templates/"
+
       # We use versioning on the buckets so that we can specify a specific version of the template to use
       # Therefore, so we do not create extra versions, we will use only copy changed files.
 
       # Copy template files to host bucket
       - echo "Executing script to sync templates..."
-      - ./scripts/sync_templates.sh $SOURCE_DIR $S3_HOST_BUCKET $S3_HOST_BASE_PATH/templates $DRYRUN
+      - ./scripts/sync_templates.sh $SOURCE_DIR $S3_HOST_BUCKET $S3_HOST_BASE_PATH_TEMPLATES $DRYRUN
       # If you have additional directories you can sync them next as long as you have a unique local and unique remote directory (don't use same as previous othewise it will perform a delete)
 #      - ./scripts/sync_templates.sh custom-templates $S3_HOST_BUCKET $S3_HOST_BASE_PATH/custom-templates $DRYRUN
 
       # Inventory host bucket templates
       - echo "Executing script to inventory S3..."
-      - ./scripts/s3_inventory.py $S3_HOST_BUCKET $S3_HOST_BASE_PATH/templates --output-dir outputs
+      - ./scripts/s3_inventory.py $S3_HOST_BUCKET $S3_HOST_BASE_PATH_TEMPLATES --output-dir outputs
       - |
         if [ -z "$DRYRUN" ]; then
-          aws s3 cp ./outputs/inventory_atlantis_templates.json s3://$S3_HOST_BUCKET/$S3_HOST_BASE_PATH/templates/inventory.json
-          aws s3 cp ./outputs/inventory_atlantis_templates.txt s3://$S3_HOST_BUCKET/$S3_HOST_BASE_PATH/templates/inventory.txt
+          aws s3 cp ./outputs/inventory_atlantis_templates.json s3://${S3_HOST_BUCKET}${S3_HOST_BASE_PATH_TEMPLATES}inventory.json
+          aws s3 cp ./outputs/inventory_atlantis_templates.txt s3://${S3_HOST_BUCKET}${S3_HOST_BASE_PATH_TEMPLATES}inventory.txt
         else
-          echo "[DRYRUN] Would copy inventory files to s3://$S3_HOST_BUCKET/$S3_HOST_BASE_PATH/templates/"
+          echo "[DRYRUN] Would copy inventory files to s3://${S3_HOST_BUCKET}${S3_HOST_BASE_PATH_TEMPLATES}"
         fi
 
       # Send sharable scripts to host bucket
       - echo "Executing script to upload scripts..."
-      - ./scripts/upload_scripts.sh $S3_HOST_BUCKET $S3_HOST_BASE_PATH/utilities scripts $DRYRUN
+      - ./scripts/upload_scripts.sh $S3_HOST_BUCKET $S3_HOST_BASE_PATH_UTILITIES scripts $DRYRUN
 
       # Inventory host bucket utilities
       - echo "Executing script to inventory S3..."
-      - ./scripts/s3_inventory.py $S3_HOST_BUCKET $S3_HOST_BASE_PATH/utilities --output-dir outputs
+      - ./scripts/s3_inventory.py $S3_HOST_BUCKET $S3_HOST_BASE_PATH_UTILITIES --output-dir outputs
       - |
         if [ -z "$DRYRUN" ]; then
-          aws s3 cp ./outputs/inventory_atlantis_utilities.json s3://$S3_HOST_BUCKET/$S3_HOST_BASE_PATH/utilities/inventory.json
-          aws s3 cp ./outputs/inventory_atlantis_utilities.txt s3://$S3_HOST_BUCKET/$S3_HOST_BASE_PATH/utilities/inventory.txt
+          aws s3 cp ./outputs/inventory_atlantis_utilities.json s3://${S3_HOST_BUCKET}${S3_HOST_BASE_PATH_UTILITIES}inventory.json
+          aws s3 cp ./outputs/inventory_atlantis_utilities.txt s3://${S3_HOST_BUCKET}${S3_HOST_BASE_PATH_UTILITIES}inventory.txt
         else
-          echo "[DRYRUN] Would copy inventory files to s3://$S3_HOST_BUCKET/$S3_HOST_BASE_PATH/utilities/"
+          echo "[DRYRUN] Would copy inventory files to s3://${S3_HOST_BUCKET}${S3_HOST_BASE_PATH_UTILITIES}"
         fi
 
 artifacts:
