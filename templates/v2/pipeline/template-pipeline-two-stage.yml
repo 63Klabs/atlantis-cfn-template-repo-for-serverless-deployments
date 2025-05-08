@@ -422,6 +422,7 @@ Resources:
               - s3:DeleteObject
               Effect: Allow
               Resource: 
+                - !Sub "arn:aws:s3:::${HostBucket}"
                 - !Sub "arn:aws:s3:::${HostBucket}/*"
             - !Ref 'AWS::NoValue'
 
