@@ -1,12 +1,22 @@
 version: 0.2
 
+# Recommended Pipeline Template "template-pipeline-two-stage" available from:
+# s3://63klabz/atlantis/templates/v2/pipeline/template-pipeline-two-stage.yml
+# https://github.com/63Klabs/atlantis-cfn-template-repo-for-serverless-deployments/blob/main/templates/v2/pipeline/template-pipeline-two-stage.yml
+
+
+# Note: This is made for a two instance environment (BETA and PROD)
+# Leave HOST buckets as ${HOST_BUCKET} if using the two stage pipeline above or if your deployment has a HOST_BUCKET variable.
+# Change _PROD and _BETA ONLY if you you not have a HOST_BUCKET environment variable.
+# Again, if using template-pipeline-two-stage for your pipeline you DO have a HOST_BUCKET env variable.
+
 env:
   variables:
     SOURCE_DIR: "templates"
     S3_HOST_BASE_PATH: "atlantis"
-    S3_HOST_BUCKET_PROD: "63klabs" # Production bucket
-    S3_HOST_BUCKET_BETA: "63klabz" # Beta bucket
-    S3_HOST_BUCKET: "${S3_HOST_BUCKET_PROD}" # Default to production bucket
+    S3_HOST_BUCKET_PROD: "${HOST_BUCKET}" # Production bucket
+    S3_HOST_BUCKET_BETA: "${HOST_BUCKET}" # Beta bucket
+    S3_HOST_BUCKET: "${HOST_BUCKET}" # Default to production bucket
     DRYRUN: "" # set to "--dryrun" if performing dry runs
 
 phases:
