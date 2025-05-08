@@ -1,10 +1,12 @@
 # Scripts Directory
 
-This directory contains utility scripts for managing AWS CloudFormatio templates using a template and module S3 bucket.
+This directory contains utility scripts for managing AWS CloudFormation templates using a template and module S3 bucket.
 
-## Prerequisites
+## Prerequisites for Deployments
 
-Before using these scripts, ensure you have the following installed:
+### Manual from CLI
+
+Before using these scripts locally, ensure you have the following installed:
 
 - Python 3.13+
 - AWS CLI configured with appropriate credentials
@@ -14,14 +16,35 @@ Before using these scripts, ensure you have the following installed:
 pip install -r requirements.txt
 ```
 
-Make scripts executable:
+Make scripts executable (if you plan in executing from your machine):
 
 ```bash
-chmod +x ./scripts/*.sh
-chmod +x ./scripts/*.py
+chmod +x ./scripts/*.{sh,py}
 ```
 
-## Available Scripts
+Commands to execute the scripts are included in the `post_build` section of the [buildspec.yml](../buildspec.yml) file and can be used for manual deployments if you set the following environment variables in your terminal:
+
+```bash
+export AWS_PROFILE="your-profile" # if not using default so you don't need to set --profile flag after commands
+export SOURCE_DIR="templates"
+export S3_HOST_BASE_PATH="atlantis"
+export S3_HOST_BUCKET="s3-bucket-name"
+export DRYRUN="" # set to "--dryrun" if performing dry runs
+```
+
+### Manual using Docker and CodeBuild Agent
+
+You can also utilize Docker and run the buildspec file directly. See [AWS Documentation: Run builds locally with the AWS CodeBuild agent](https://docs.aws.amazon.com/codebuild/latest/userguide/use-codebuild-agent.html).
+
+Ensure the `HOST_BUCKET` and `DEPLOY_ENV` environment variables are set (all others are set in the buildspec `env.variables` section).
+
+### Automated Deployments
+
+The buildspec file can be used for automated deployments and expects `HOST_BUCKET` and `DEPLOY_ENV` to be already set in the CodeBuild environment.
+
+Recommended Pipeline Template: [templates/v2/pipeline/template-pipeline-two-stage](../templates/v2/pipeline/template-pipeline-two-stage.yml)
+
+## Deployment Scripts
 
 ### upload_scripts.sh
 
@@ -31,16 +54,16 @@ Usage:
 
 ```bash
 # Basic usage
-./upload_scripts.sh <bucket-name> <base-path>
+./scripts/upload_scripts.sh <bucket-name> <base-path>
 
 # With custom source directory
-./upload_scripts.sh <bucket-name> <base-path> <source-dir>
+./scripts/upload_scripts.sh <bucket-name> <base-path> <source-dir>
 
 # With AWS profile
-./upload_scripts.sh <bucket-name> <base-path> --profile <profile-name>
+./scripts/upload_scripts.sh <bucket-name> <base-path> --profile <profile-name>
 
 # Preview changes with dryrun
-./upload_scripts.sh <bucket-name> <base-path> --dryrun
+./scripts//upload_scripts.sh <bucket-name> <base-path> --dryrun
 ```
 
 Example Output:
@@ -66,16 +89,16 @@ Usage:
 
 ```bash
 # Basic usage
-./sync_templates.sh <bucket-name> <base-path>
+./scripts/sync_templates.sh <bucket-name> <base-path>
 
 # With custom source directory
-./sync_templates.sh <bucket-name> <base-path> <source-dir>
+./scripts/sync_templates.sh <bucket-name> <base-path> <source-dir>
 
 # With AWS profile
-./sync_templates.sh <bucket-name> <base-path> --profile <profile-name>
+./scripts/sync_templates.sh <bucket-name> <base-path> --profile <profile-name>
 
 # Preview changes with dryrun
-./sync_templates.sh <bucket-name> <base-path> --dryrun
+./scripts/sync_templates.sh <bucket-name> <base-path> --dryrun
 ```
 
 Example Output:
@@ -98,13 +121,13 @@ Usage:
 
 ```bash
 # Basic usage
-python s3_inventory.py --bucket <bucket-name> --prefix <prefix>
+python ./scripts/s3_inventory.py --bucket <bucket-name> --prefix <prefix>
 
 # With AWS profile
-python s3_inventory.py --bucket <bucket-name> --prefix <prefix> --profile <profile-name>
+python ./scripts/s3_inventory.py --bucket <bucket-name> --prefix <prefix> --profile <profile-name>
 
 # Save output to specific location
-python s3_inventory.py --bucket <bucket-name> --prefix <prefix> --output ./outputs/inventory.json
+python ./scripts/s3_inventory.py --bucket <bucket-name> --prefix <prefix> --output ./outputs/inventory.json
 ```
 
 Example Output:
@@ -130,14 +153,14 @@ Example Output:
 }
 ```
 
-## Common Options
+### Common Script Options
 
 All scripts support the following common options:
 
 - `--profile`: Specify an AWS profile to use
 - `--dryrun`: Preview changes without making them (s3_inventory.py does not support this as it does not modify S3)
 
-## Error Handling
+### Script Error Handling
 
 Scripts will exit with appropriate error messages for common issues:
 
@@ -161,9 +184,9 @@ botocore>=1.29.0
 - All scripts use AWS credentials from either:
   - Default profile
   - Specified profile via `--profile`
-  - Environment variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`)
+  - Environment variables (`AWS_PROFILE`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`)
 - Scripts maintain consistent behavior across different operating systems
-- File timestamps and checksums are used to minimize unnecessary uploads
+- File timestamps and checksums are used to minimize unnecessary uploads and S3 versions
 
 This README and the scripts contained within this directory were generated by Amazon Q through iterative prompts and testing by the author to produce the desired results. 
 

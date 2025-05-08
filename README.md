@@ -2,9 +2,11 @@
 
 Scripts and structure for managing templates and publishing to your organization's infrastructure module and template S3 bucket.
 
-The intended users of this repository are AWS account admins, architects, and platform engineers. Those performing developer and software engineer roles will need read access to the S3 bucket in order to include the templates and modules in their deployments.
+The intended users of this repository are AWS account admins, architects, and platform engineers. Those performing developer and software engineer roles, and CloudFormation executions utilizing the templates, will need read access to the S3 bucket in order to include the templates and modules during deployments.
 
-To deploy these templates, use [Atlantis CloudFormation Configuration Repository for Serverless Deployments](https://github.com/63klabs/atlantis-cfn-configuration-repo-for-serverless-deployments) available on GitHub.
+> If you do not wish to maintain your own templates and just wish to utilize them FOR BEGINNING, EXPERIMENTAL, EDUCATIONAL, and TRAINING PURPOSES, you DO NOT need to deploy your own S3 bucket of templates. Just use `S3://63klabs` which is publicly available. It will get you started quicker and does not require advanced knowledge of everything covered in the deployment documentation. Just go build!
+
+You can reference the original source repository of these templates on GitHub: [Atlantis Template Repository for Serverless Deployments using AWS SAM and CloudFormation](https://github.com/63Klabs/atlantis-cfn-template-repo-for-serverless-deployments)
 
 ## Deploy to your own S3 Template Bucket
 
@@ -12,15 +14,7 @@ These templates are available from `s3://63klabs` for use in your own projects, 
 
 Download this repository and utilize the commands in the buildspec.yml file to manage your own deployments to your own organization's S3 template bucket.
 
-If using AWS CodePipeline, just create a new pipeline that monitors changes to a branch in your repository and copies changes to an S3 bucket.
-
-> Hint: You can use the [template-pipeline-two-stage.yml](./templates/v2/pipeline/template-pipeline-two-stage.yml) to deploy your AWS CodePipeline. All you need is an S3 bucket to use as the `HostBucket`.
-
-## Scripts
-
-Use the scripts in the scripts directory to manage your templates in S3. Use the examples in [buildspec.yml](./buildspec.yml) and [scripts documentation](./scripts/README.md).
-
-A zip file of the scripts can be copied from `s3://63klabs/atlantis/utilities/template_scripts.zip` (or your own bucket) programmatically for use in other pipeline scripts.
+See the [scripts README](./scripts/README.md) for more information on manual and automated deployments. (Hint: [templates/v2/pipeline/template-pipeline-two-stage](./templates/v2/pipeline/template-pipeline-two-stage.yml) is a template you can use for your very own pipeline!).
 
 ## Tutorial
 
@@ -28,8 +22,11 @@ TODO
 
 ## Changelog
 
-TODO
+[Change Log](./CHANGELOG.md)
 
 ## Author
 
-Chad Kluck, Software Engineer, AWS Certified, [Website](https://chadkluck.me)
+Chad Kluck
+DevOps & Developer Experience Engineer
+AWS Certified
+[Website](https://chadkluck.me)
