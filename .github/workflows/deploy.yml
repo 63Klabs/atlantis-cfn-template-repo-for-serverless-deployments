@@ -9,7 +9,7 @@ name: Deploy to S3
 #   AWS_RELEASE_REGION
 # Variables:
 #   AWS_RELEASE_BUCKET - bucket to upload artifact to
-#   AWS_RELEASE_BUCKET_UTILS_PATH - Must be single / or begin and end with / (suggested: /atlantis/utils/)
+#   AWS_RELEASE_BUCKET_UTILS_PATH - Must be single / or begin and end with / (suggested: /atlantis/utilities/v2/)
 #   AWS_RELEASE_BUCKET_TEMPLATES_PATH - Must be single / or begin and end with / (suggested: /atlantis/templates/)
 #
 
