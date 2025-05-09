@@ -369,7 +369,7 @@ Resources:
             Effect: Allow
             Action:
             - logs:*
-            Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${Prefix}-${ProjectId}-${StageId}-Build:*v"
+            Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${Prefix}-${ProjectId}-${StageId}-Build:*"
 
           - Sid: "AllowCodeBuildToManageItsArtifacts"
             Effect: Allow
