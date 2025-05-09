@@ -5,7 +5,7 @@ Description: "CodePipeline for Automated Deployments from repository - Deployed 
 # Atlantis for AWS SAM Deployments
 # Pipeline Infrastructure Template
 # Author: Chad Kluck - chadkluck.me
-# Version: v2.0.13/2025-01-15
+# Version: v2.0.14/2025-05-08
 
 # Documentation, Issues/Feature Requests, Latest Updates, and Security Reports on GitHub:
 # https://github.com/63klabs/atlantis-for-aws-sam-deployments/
@@ -1081,7 +1081,7 @@ Resources:
         - codepipeline-pipeline-pipeline-execution-started
         - codepipeline-pipeline-pipeline-execution-succeeded
         - codepipeline-pipeline-pipeline-execution-failed
-      Resource: !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${Pipeline}
+      Resource: !Sub "arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${Prefix}-${ProjectId}-${StageId}-Pipeline"
       Targets:
         - TargetType: SNS
           TargetAddress: !Ref PipelineNotificationTopic
