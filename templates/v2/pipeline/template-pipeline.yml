@@ -1,4 +1,3 @@
-
 AWSTemplateFormatVersion: "2010-09-09"
 Description: "CodePipeline for Automated Deployments from repository - Deployed using SAM"
 
@@ -628,8 +627,12 @@ Resources:
             - lambda:GetLayerVersion
             Effect: Allow
             Resource:
-              - !Sub 'arn:aws:lambda:${AWS::Region}:${!FindInMap [LambdaInsightsAccountId, !Ref "AWS::Region", AccountId]}:layer:LambdaInsightsExtension:*'
-              - !Sub 'arn:aws:lambda:${AWS::Region}:${!FindInMap [LambdaInsightsAccountId, !Ref "AWS::Region", AccountId]}:layer:LambdaInsightsExtension-Arm64:*'
+              - !Sub
+                - 'arn:aws:lambda:${AWS::Region}:${AccountId}:layer:LambdaInsightsExtension:*'
+                - AccountId: !FindInMap [LambdaInsightsAccountId, !Ref "AWS::Region", AccountId]
+              - !Sub 
+                - 'arn:aws:lambda:${AWS::Region}:${AccountId}:layer:LambdaInsightsExtension-Arm64:*'
+                - AccountId: !FindInMap [LambdaInsightsAccountId, !Ref "AWS::Region", AccountId]
             # https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Lambda-Insights-extension-versions.html
             # These accounts are owned by AWS so they can be trusted
 
@@ -639,8 +642,12 @@ Resources:
             - lambda:GetLayerVersion
             Effect: Allow
             Resource:
-              - !Sub 'arn:aws:lambda:${AWS::Region}:${!FindInMap [LambdaParamSecretsAccountId, !Ref "AWS::Region", AccountId]}:layer:AWS-Parameters-and-Secrets-Lambda-Extension:*'
-              - !Sub 'arn:aws:lambda:${AWS::Region}:${!FindInMap [LambdaParamSecretsAccountId, !Ref "AWS::Region", AccountId]}:layer:AWS-Parameters-and-Secrets-Lambda-Extension-Arm64:*'
+              - !Sub 
+                - 'arn:aws:lambda:${AWS::Region}:${AccountId}:layer:AWS-Parameters-and-Secrets-Lambda-Extension:*'
+                - AccountId: !FindInMap [LambdaParamSecretsAccountId, !Ref "AWS::Region", AccountId]
+              - !Sub
+                - 'arn:aws:lambda:${AWS::Region}:${AccountId}:layer:AWS-Parameters-and-Secrets-Lambda-Extension-Arm64:*'
+                - AccountId: !FindInMap [LambdaParamSecretsAccountId, !Ref "AWS::Region", AccountId]
             # https://docs.aws.amazon.com/systems-manager/latest/userguide/ps-integration-lambda-extensions.html#ps-integration-lambda-extensions-add
             # These accounts are owned by AWS so they can be trusted
 
