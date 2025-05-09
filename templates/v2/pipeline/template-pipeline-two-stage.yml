@@ -1,11 +1,10 @@
-
 AWSTemplateFormatVersion: "2010-09-09"
 Description: "CodePipeline for Automated Deployments from repository using only CodeBuild - Deployed using SAM"
 
 # Atlantis for AWS SAM Deployments
 # Pipeline Infrastructure Template
 # Author: Chad Kluck - chadkluck.me
-# Version: v2.0.1/2025-01-25
+# Version: v2.0.2/2025-05-09
 
 # Documentation, Issues/Feature Requests, Latest Updates, and Security Reports on GitHub:
 # https://github.com/63klabs/atlantis-cfn-template-repo-for-serverless-deployments/
@@ -42,6 +41,7 @@ Metadata:
           - DeployEnvironment
           - DeployBucket
           - HostBucket
+          - BuildSpec
       -
         Label:
           default: "External Resources and Alarm Notifications"
@@ -139,6 +139,13 @@ Parameters:
     AllowedPattern: "^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$|^$"
     ConstraintDescription: "May only contain alphanumeric characters, dashes, and must begin and end with a letter or number."
 
+  BuildSpec:
+    Type: String
+    Description: "The local or S3 URI of the CodeBuild buildspec.yml file. For example, s3://mybucket/buildspec.yml. Best practice is to have one buildspec file for all deployments. This option exists if you cannot store your buildspec file with your source code OR wish to use a central buildspec for all deployments. Not for managing multiple buildspecs on a single repo. (buildspec-dev.yml, buildspec-prod.yml, etc). Default is buildspec.yml, and blank will use the default buildspec.yml in the root of the repository."
+    Default: "buildspec.yml"
+    AllowedPattern: "^s3:\\/\\/[a-zA-Z0-9][a-zA-Z0-9\\-]{1,61}[a-zA-Z0-9]\\/.*$|buildspec\\.yml|^$"
+    ConstraintDescription: "Must be a valid S3 URI or 'buildspec.yml'. For example, s3://mybucket/buildspec.yml. May be empty."
+
   # ---------------------------------------------------------------------------
   # External Resources and Alarm Notifications
 
@@ -193,6 +200,7 @@ Conditions:
   HasPermissionsBoundaryArn: !Not [!Equals [!Ref PermissionsBoundaryArn, ""]]
   UseOwnS3DeployBucket: !Equals [!Ref DeployBucket, ""]
   HasHostBucket: !Not [!Equals [!Ref HostBucket, ""]]
+  HasBuildSpec: !Not [!Equals [!Ref BuildSpec, ""]]
 
 # =============================================================================
 # RESOURCES
@@ -368,7 +376,7 @@ Resources:
             - s3:ListBucket
             - s3:GetBucketLocation
             Resource:
-            - !Sub "arn:aws:s3:::*"
+            - "arn:aws:s3:::*"
 
           # General buckets for many application projects with paths devoted to applications
           - Sid: CopyAssetsToS3DuringBuildByPath
@@ -393,7 +401,7 @@ Resources:
             Effect: Allow
             Resource: !Join
             - ""
-            - - !Sub "arn:aws:s3:::"
+            - - "arn:aws:s3:::"
               - !If [UseS3BucketNameOrgPrefix, !Sub "${S3BucketNameOrgPrefix}-", "" ]
               - !Sub "${Prefix}-${ProjectId}-*/${StageId}/*"
 
@@ -529,7 +537,7 @@ Resources:
           Value: "production" # We do not need dev dependencies deployed to Lambda as they are for local development. IF you needed to run tests during build, then temporarily set in buildspec but be sure final deploy is based on production dependencies. (Build twice)  
       Source:
         Type: CODEPIPELINE
-        BuildSpec: buildspec.yml # Explicitly set just to note that there should only be one buildspec (not buildspec-dev.yml or buildspec-prod.yml) which if needed to process differently for an environment, that logic should be in the buildspec and SAM template. Otherwise management of 2 or more would be difficult. We have Deploy Stage and Deploy Environment variables so use them.
+        BuildSpec: !If [HasBuildSpec, !Ref BuildSpec, "buildspec.yml"]
 
   # ---------------------------------------------------------------------------
   # -- Log Group for CodeBuild Project --
