@@ -523,12 +523,13 @@ Resources:
               StringEquals:
                 "aws:ResourceTag/atlantis:ApplicationDeploymentId": !Sub "${Prefix}-${ProjectId}-${StageId}"
 
-          - Sid: "CloudFormationTransform"
+          - Sid: "AllowServerlessTransform"
             Action:
             - cloudformation:CreateChangeSet
             Effect: Allow
             Resource:
-            - !Sub "arn:aws:cloudformation:${AWS::Region}:aws:transform/AWS::Serverless-2016-10-31"
+            - !Sub "arn:aws:cloudformation:${AWS::Region}:aws:transform/Serverless-2016-10-31"
+
 
           - Sid: "CodeDeployCRUDThisDeploymentOnly"
             Action:
