@@ -1,15 +1,29 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: "Shared storage for Lambda applications utilizing Cache-Data (S3/DynamoDb) - Deployed using SAM"
+Description: "S3 for storing shared DevOps files (buildspec, buildscripts, reusable Lambda src) - Deployed using SAM"
 
 # Atlantis for AWS SAM Deployments
 # Storage Infrastructure Template
 # Author: Chad Kluck - 63klabs.net
-# Version: v0.0.13/2025-05-10
+# Version: v0.0.1/2025-05-10
 
 # Documentation, Issues/Feature Requests, Latest Updates, and Security Reports on GitHub:
 # https://github.com/63klabs/atlantis-cfn-template-repo-for-serverless-deployments/
 
+# Creates an S3 bucket with objects managed by a pipeline.
+# Objects are then available to be used by other stacks, pipelines, and CodeBuild projects.
+# Ideal for storing reusable Lambda functions, buildspecs, and build scripts.
+# Anything where you have a common file that you want to share across multiple deployments
+# that utilize variables.
+
+# For example:
+# - store a Lambda cache invalidation script in this bucket and use it in multiple stacks.
+# - store a buildspec in this bucket and use it in multiple code builds.
+# - store common build scripts in this bucket and use them in multiple code builds.
+
+# USE WITH:
+# - Pipeline that deploys objects to this bucket
+# - Pipelines that use this bucket as a source
 
 # =============================================================================
 # META DATA
@@ -27,11 +41,6 @@ Metadata:
           - Prefix
           - ProjectId
           - S3BucketNameOrgPrefix
-      -
-        Label:
-          default: "Cache-Data Parameters"
-        Parameters:
-          - CacheDataPurgeAgeOfCachedBucketObjInDays
 
 # =============================================================================
 # PARAMETERS
@@ -68,17 +77,6 @@ Parameters:
     AllowedPattern: "^[a-z0-9][a-z0-9-]{0,18}[a-z0-9]$|^$"
     ConstraintDescription: "May be empty or 2 to 20 characters (8 or less recommended). Lower case alphanumeric and dashes. Must start and end with a letter or number."
 
-  # ---------------------------------------------------------------------------
-  # Cache-Data Parameters
-  # From: https://www.npmjs.com/package/@chadkluck/cache-data
-
-  CacheDataPurgeAgeOfCachedBucketObjInDays:
-    Type: Number
-    Description: "Similar to CacheData_PurgeExpiredCacheEntriesInHours, but for the S3 Bucket. S3 calculates from time object is created/last modified (not accessed). This should be longer than your longest cache expiration set in custom/policies. Keeping objects in S3 for too long increases storage costs. (30 is recommended)"
-    Default: 15
-    MinValue: 3
-    ConstraintDescription: "Choose a value of 3 days or greater. This should be slightly longer than the longest cache expiration expected"
-
 # =============================================================================
 # CONDITIONS
 # -----------------------------------------------------------------------------
@@ -94,92 +92,72 @@ Conditions:
 # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/resources-section-structure.html  
 #
 Resources:
-
-  # ---------------------------------------------------------------------------
-  # Cache-Data
-  # From: https://www.npmjs.com/package/@63klabs/cache-data
-  # Your Lambda function will need access via the Execution Role
-
-  # -- Cache-Data DynamoDb Table --
-
-  CacheDataDynamoDbTable:
-    Type: AWS::DynamoDB::Table
-    Properties:
-      TableName: !Sub '${Prefix}-${ProjectId}-CacheData'
-      AttributeDefinitions: 
-        - AttributeName: "id_hash"
-          AttributeType: "S"
-      KeySchema: 
-        - AttributeName: "id_hash"
-          KeyType: "HASH"
-      TimeToLiveSpecification:
-        AttributeName: "purge_ts"
-        Enabled: true
-      BillingMode: "PAY_PER_REQUEST" # Use PAY_PER_REQUEST for spikey Web Service Traffic
-
-
-  # -- Cache-Data S3 Bucket --
-
-  CacheDataS3Bucket:
+  
+  # Creates a new S3 bucket with SSE and public access blocked.
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket.html
+  Bucket:
     Type: AWS::S3::Bucket
+    DeletionPolicy: Retain # Set to Retain because this is critical infrastructure
+    UpdateReplacePolicy: Retain # Set to Retain because this is critical infrastructure
     Properties:
       BucketName: !Join
         - "-"
         - - !If [UseS3BucketNameOrgPrefix, !Sub "${S3BucketNameOrgPrefix}-${Prefix}", !Sub "${Prefix}" ]
-          - !Sub "${ProjectId}-cachedata-${AWS::Region}-${AWS::AccountId}"
+          - !Sub "${ProjectId}-${AWS::Region}-${AWS::AccountId}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: true
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
-      LifecycleConfiguration:
-        Rules:
-          - Id: "ExpireObjects"
-            AbortIncompleteMultipartUpload:
-              DaysAfterInitiation: 1
-            ExpirationInDays: !Ref CacheDataPurgeAgeOfCachedBucketObjInDays
-            Prefix: "cache" # this will limit this policy to YOURBUCKETNAME/cache/*
-            NoncurrentVersionExpirationInDays: !Ref CacheDataPurgeAgeOfCachedBucketObjInDays
-            Status: "Enabled" # Enable only if you are going to use this LifecycleConfiguration
 
-  # -- Cache-Data S3 Bucket Policy --
-
-  CacheDataS3BucketPolicy:
+  # Creates a bucket policy giving OAC read-only access to the S3 bucket.
+  # https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-restricting-access-to-s3.html
+  BucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
-      Bucket: !Ref CacheDataS3Bucket
+      Bucket: !Ref Bucket
       PolicyDocument:
-        Version: "2012-10-17"
-        Id: SecurityPolicy
+        Version: '2012-10-17'
         Statement:
           - Sid: "DenyNonSecureTransportAccess"
             Effect: Deny
             Principal: "*"
-            Action: "s3:*"
+            Action: 's3:*'
             Resource:
-              - !GetAtt CacheDataS3Bucket.Arn
-              - !Join [ '', [ !GetAtt CacheDataS3Bucket.Arn, '/*' ] ]
+              - !GetAtt Bucket.Arn
+              - !Join [ '/', [ !GetAtt Bucket.Arn, '*' ] ]
             Condition:
               Bool:
                 "aws:SecureTransport": false
-
-          - Sid: AllowLambdaReadWriteDelete
+          - Sid: AllowCloudFrontServicePrincipalReadOnly
+            Action:
+            - 's3:GetObject'
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Resource: !Sub "${Bucket.Arn}/*" # TODO: Add in ${aws:???Tag/Stage}/public/*
+            Condition:
+              StringLike:
+                "aws:SourceArn": !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/*"
+              # StringEquals:
+              #   "aws:ResourceTag/atlantis:Application": !Sub "${Prefix}-${ProjectId}"
+          - Sid: AllowCodeBuildReadWriteDelete
             Action:
             - 's3:GetObject'
             - 's3:PutObject'
             - 's3:DeleteObject'
             Effect: Allow
             Principal:
-              Service: lambda.amazonaws.com
-            Resource: !Sub "${CacheDataS3Bucket.Arn}/*"
+              Service: codebuild.amazonaws.com
+            Resource: !Sub "${Bucket.Arn}/*" # TODO: Add in ${aws:???Tag/Stage}
             Condition:
               StringLike:
-                "aws:SourceArn": !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:project/${Prefix}-*"
-
+                "aws:SourceArn": !Sub "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${Prefix}-${ProjectId}-*"
 
 # =============================================================================
 # OUTPUTS
@@ -191,30 +169,9 @@ Resources:
 #
 
 Outputs:
-  DynamoDbWebConsole:
-    Description: "DynamoDb Table Web Console"
-    Value: !Sub "https://console.aws.amazon.com/dynamodbv2/home?region=${AWS::Region}#table?name=${CacheDataDynamoDbTable}&initialTableGroup=%23all"
-  S3BucketWebConsole:
-    Description: "S3 Bucket Web Console"
-    Value: !Sub "https://s3.console.aws.amazon.com/s3/buckets/${CacheDataS3Bucket}?region=${AWS::Region}"
-  # Exports
-  DynamoDbTableExport:
-    Description: "DynamoDb Table Name"
-    Value: !Ref CacheDataDynamoDbTable
-    Export:
-      Name: !Sub '${Prefix}-${ProjectId}-CacheDataDynamoDbTable'
-  S3BucketExport:
-    Description: "S3 Bucket Name"
-    Value: !Ref CacheDataS3Bucket
-    Export:
-      Name: !Sub '${Prefix}-${ProjectId}-CacheDataS3Bucket'
-  S3BucketArnExport:
-    Description: "S3 Bucket ARN"
-    Value: !GetAtt CacheDataS3Bucket.Arn
-    Export:
-      Name: !Sub '${Prefix}-${ProjectId}-CacheDataS3BucketArn'
-  DynamoDbTableArnExport:
-    Description: "DynamoDb Table ARN"
-    Value: !GetAtt CacheDataDynamoDbTable.Arn
-    Export:
-      Name: !Sub '${Prefix}-${ProjectId}-CacheDataDynamoDbTableArn'
+  BucketName:
+    Description: The S3 Bucket Name used for CloudFront Origin.
+    Value: !Ref Bucket
+  AllowedCodeBuild:
+    Description: Read access is available to all in this account. CRUD is restricted to CodeBuild with the following atlantis:Application tag value.
+    Value: !Sub "${Prefix}-${ProjectId}"

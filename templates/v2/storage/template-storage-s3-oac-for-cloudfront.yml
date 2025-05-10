@@ -4,11 +4,11 @@ Description: "CloudFront distribution with S3 origin access control (OAC). Inclu
 
 # Atlantis for AWS SAM Deployments
 # Storage Infrastructure Template
-# Author: Chad Kluck - chadkluck.me
+# Author: Chad Kluck - 63klabs.net
 # Version: v0.0.12/2024-10-22
 
 # Documentation, Issues/Feature Requests, Latest Updates, and Security Reports on GitHub:
-# https://github.com/63klabs/atlantis-for-aws-sam-deployments/
+# https://github.com/63klabs/atlantis-cfn-template-repo-for-serverless-deployments/
 
 
 # =============================================================================
@@ -28,11 +28,6 @@ Metadata:
           - ProjectId
           - S3BucketNameOrgPrefix
           - RolePath
-      -
-        Label:
-          default: "Deployment Environment Identification"
-        Parameters:
-          - DeployRole
       -
         Label:
           default: "External Resources and Alarm Notifications"

@@ -7,13 +7,13 @@ Description: "CodePipeline for Automated Deployments from repository - Deployed 
 # Version: v2.0.14/2025-05-08
 
 # Documentation, Issues/Feature Requests, Latest Updates, and Security Reports on GitHub:
-# https://github.com/63klabs/atlantis-for-aws-sam-deployments/
+# https://github.com/63klabs/atlantis-cfn-template-repo-for-serverless-deployments/
 
 # Creates an AWS CodePipeline that is triggered when a watched branch
 # receives a new commit. Uses CodeBuild and then CloudFormation to deploy.
 
 # USE WITH:
-# - Application Infrastructure (API Gateway)
+# - Application Infrastructure (API Gateway, Event Bridge, Lambda, Step Functions, S3, DynamoDB, etc)
 # - OPTIONAL: Route53 and CloudFront for custom domains 
 
 
