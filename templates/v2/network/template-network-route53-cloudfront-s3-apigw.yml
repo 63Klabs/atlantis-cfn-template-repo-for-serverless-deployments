@@ -4,11 +4,11 @@ Description: "Serves Static Content (S3) and/or API Gateway via CloudFront with 
 
 # Atlantis for AWS SAM Deployments
 # Network Infrastructure Template
-# Author: Chad Kluck - chadkluck.me
+# Author: Chad Kluck - 63klabs.net
 # Version: v0.0.12/2024-10-22
 
 # Documentation, Issues/Feature Requests, Latest Updates, and Security Reports on GitHub:
-# https://github.com/63klabs/atlantis-for-aws-sam-deployments/
+# https://github.com/63klabs/atlantis-cfn-template-repo-for-serverless-deployments/
 
 # Apply custom sub-domains via Route53 to static content in an S3 bucket 
 # and/or an API Gateway. Static and API can reside on same sub-domains 
