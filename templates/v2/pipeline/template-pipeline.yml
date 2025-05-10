@@ -518,17 +518,20 @@ Resources:
             Action:
             - cloudformation:*
             Effect: Allow
-            Resource: "*"
-            Condition:
-              StringEquals:
-                "aws:ResourceTag/atlantis:ApplicationDeploymentId": !Sub "${Prefix}-${ProjectId}-${StageId}"
+            Resource: 
+            - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${Prefix}-${ProjectId}-${StageId}-application/*"
 
-          - Sid: "AllowServerlessTransform"
+          - Sid: "AllowServerlessOperations"
             Action:
             - cloudformation:CreateChangeSet
+            - cloudformation:ExecuteChangeSet
+            - cloudformation:GetTemplateSummary
+            - cloudformation:DescribeChangeSet
+            - cloudformation:DescribeStacks
+            - cloudformation:DescribeStackEvents
             Effect: Allow
             Resource:
-            - !Sub "arn:aws:cloudformation:${AWS::Region}:aws:transform/Serverless-2016-10-31"
+            - "arn:aws:cloudformation:*:aws:transform/Serverless-2016-10-31"
 
 
           - Sid: "CodeDeployCRUDThisDeploymentOnly"
