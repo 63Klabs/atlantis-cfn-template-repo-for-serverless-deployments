@@ -42,7 +42,7 @@ Ensure the `HOST_BUCKET` environment variables are set (all others are set in th
 
 The buildspec file can be used for automated deployments and expects `HOST_BUCKET` and `DEPLOY_ENV` to be already set in the CodeBuild environment.
 
-Recommended Pipeline Template: [templates/v2/pipeline/template-pipeline-two-stage](../templates/v2/pipeline/template-pipeline-two-stage.yml)
+Recommended Pipeline Template: [templates/v2/pipeline/template-pipeline-build-only](../templates/v2/pipeline/template-pipeline-build-only.yml)
 
 ### Automated Deployment using GitHub Actions
 

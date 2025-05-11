@@ -16,7 +16,7 @@ These templates are available from `s3://63klabs` for use in your own projects, 
 
 Download this repository and utilize the commands in the buildspec.yml file to manage your own deployments to your own organization's S3 template bucket.
 
-See the [scripts README](./scripts/README.md) for more information on manual and automated deployments. (Hint: [template-pipeline-two-stage](./templates/v2/pipeline/template-pipeline-two-stage.yml) is a template you can use for your very own pipeline or you can deploy using the [GitHub actions workflow](./.github/workflows/deploy.yml)!).
+See the [scripts README](./scripts/README.md) for more information on manual and automated deployments. (Hint: [template-pipeline-build-only](./templates/v2/pipeline/template-pipeline-build-only.yml) is a template you can use for your very own pipeline or you can deploy using the [GitHub actions workflow](./.github/workflows/deploy.yml)!).
 
 ## Tutorial
 

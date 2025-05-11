@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: "S3 for storing shared and latest (non-versioned) DevOps files (buildspec, buildscripts, reusable Lambda src) - Deployed using SAM"
+Description: "S3 for storing s3 log files - Deployed using SAM"
 
 # Atlantis for AWS SAM Deployments
 # Storage Infrastructure Template
@@ -10,20 +10,12 @@ Description: "S3 for storing shared and latest (non-versioned) DevOps files (bui
 # Documentation, Issues/Feature Requests, Latest Updates, and Security Reports on GitHub:
 # https://github.com/63klabs/atlantis-cfn-template-repo-for-serverless-deployments/
 
-# Creates an S3 bucket with objects managed by a pipeline.
-# Objects are then available to be used by other stacks, pipelines, and CodeBuild projects.
-# Ideal for storing reusable Lambda functions, buildspecs, and build scripts.
-# Anything where you have a common file that you want to share across multiple deployments
-# that utilize variables.
-
-# For example:
-# - store a Lambda cache invalidation script in this bucket and use it in multiple stacks.
-# - store a buildspec in this bucket and use it in multiple code build projects.
-# - store common build scripts in this bucket and use them in multiple code build projects.
-
-# USE WITH:
-# - Pipeline that deploys objects to this bucket (eg. pipeline/template-pipeline-build-only.yml)
-# - Pipelines and CloudFormation templates that use this bucket as a source for script includes
+# Creates an S3 bucket for storing S3 access logs. The bucket is configured with
+# encryption and a lifecycle policy to delete logs after a specified
+# number of days. The bucket name is generated based on the provided prefix,
+# project ID, and region. The bucket policy allows S3 log delivery and denies
+# non-secure transport access. The bucket is retained on stack deletion and
+# replacement.
 
 # =============================================================================
 # META DATA
@@ -43,10 +35,9 @@ Metadata:
           - S3BucketNameOrgPrefix
       -
         Label:
-          default: "Supporting Resources"
+          default: "Log Settings"
         Parameters:
-          - BuildSourceArn
-          - S3LogBucketName
+          - LogExpirationInDays
 
 # =============================================================================
 # PARAMETERS
@@ -84,21 +75,15 @@ Parameters:
     ConstraintDescription: "May be empty or 2 to 20 characters (8 or less recommended). Lower case alphanumeric and dashes. Must start and end with a letter or number."
 
   # ---------------------------------------------------------------------------
-  # Supporting Resources
+  # Log Settings
 
-  BuildSourceArn:
-    Type: String
-    Description: "The ARN of the CodeBuild project that will be managing objects in this bucket. It will be granted read, write, delete permissions."
-    Default: ""
-    AllowedPattern: "^arn:aws:codebuild:[a-z0-9-]+:[0-9]{12}:project/[a-zA-Z0-9-_]+$|^$"
-    ConstraintDescription: "Must be a valid CodeBuild ARN or empty."
-
-  S3LogBucketName:
-    Type: String
-    Description: "The name of the S3 bucket used for logging. This is a required parameter for the S3 bucket."
-    Default: ""
-    AllowedPattern: "^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$|^$"
-    ConstraintDescription: "Must be a valid S3 bucket name or empty. Must be between 3 and 63 characters long. Lower case alphanumeric and dashes. Must start and end with a letter or number."
+  LogExpirationInDays:
+    Type: Number
+    Description: "The number of days to keep logs in the logging bucket. Default is 90 days."
+    Default: 90
+    MinValue: 1
+    MaxValue: 365
+    ConstraintDescription: "Must be between 1 and 365 days."
 
 # =============================================================================
 # CONDITIONS
@@ -108,22 +93,22 @@ Parameters:
 
 Conditions:
   UseS3BucketNameOrgPrefix: !Not [!Equals [!Ref S3BucketNameOrgPrefix, ""]]
-  UseBuildSourceArn: !Not [!Equals [!Ref BuildSourceArn, ""]]
-  HasLoggingBucket: !Not [!Equals [!Ref S3LogBucketName, ""]]
 
 # =============================================================================
 # RESOURCES
 # -----------------------------------------------------------------------------
 # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/resources-section-structure.html  
 #
+
 Resources:
   
-  # Creates a new S3 bucket with public access blocked.
-  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket.html
+  # -------------------------------------------------------------------------------
+  # S3 Logging Bucket
+
   Bucket:
     Type: AWS::S3::Bucket
-    DeletionPolicy: Retain # Set to Retain because this is critical infrastructure - Even though it could be recreated, we want to keep the data as it is "live"
-    UpdateReplacePolicy: Retain # Set to Retain because this is critical infrastructure
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       BucketName: !Join
         - "-"
@@ -141,16 +126,13 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
-      LoggingConfiguration: !If
-      - HasLoggingBucket
-      - DestinationBucketName: !Ref S3LogBucketName
-        LogFilePrefix: !Join
-          - "-"
-          - - !If [UseS3BucketNameOrgPrefix, !Sub "${S3BucketNameOrgPrefix}-${Prefix}", !Sub "${Prefix}" ]
-            - !Sub "${ProjectId}-${AWS::Region}-${AWS::AccountId}"
-      - !Ref AWS::NoValue
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldLogs
+            Status: Enabled
+            ExpirationInDays: !Ref LogExpirationInDays
 
-  BucketPolicy:
+  LoggingBucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
       Bucket: !Ref Bucket
@@ -167,54 +149,17 @@ Resources:
             Condition:
               Bool:
                 "aws:SecureTransport": false
-
-          # We many not have the BuildSourceArn at the time of stack creation.
-          # Or, we may be using manual deployments and not using CodeBuild.
-          # So we will only add the CRUD permissions if the BuildSourceArn is provided.
-          - !If
-            - UseBuildSourceArn
-            - Sid: AllowCodeBuildSourceReadWriteDelete
-              Action:
-              - 's3:GetObject'
-              - 's3:PutObject'
-              - 's3:DeleteObject'
-              Effect: Allow
-              Principal:
-                Service: codebuild.amazonaws.com
-              Resource: !Sub "${Bucket.Arn}/*" # TODO: Add in ${aws:???Tag/Stage}
-              Condition:
-                StringLike:
-                  "aws:SourceArn": !Ref BuildSourceArn
-            - !Ref AWS::NoValue
-
-                
-          # Allow CloudFormation access with account and region restrictions - Stack Arn may not exist yet so we use different Account and Region
-          - Sid: AllowCloudFormationReadAccess
-            Action:
-            - 's3:GetObject'
-            - 's3:ListBucket'
+          - Sid: "AllowS3LogDelivery"
             Effect: Allow
             Principal:
-              Service: cloudformation.amazonaws.com
-            Resource:
-            - !GetAtt Bucket.Arn
-            - !Sub "${Bucket.Arn}/*"
+              Service: logging.s3.amazonaws.com
+            Action: 
+              - "s3:PutObject"
+            Resource: !Sub "${Bucket.Arn}/*"
             Condition:
               StringEquals:
                 "aws:SourceAccount": !Ref AWS::AccountId
-              StringLike:
-                "aws:SourceArn": !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:*"
 
-          - Sid: AllowCodeBuildReadAccess
-            Action:
-            - 's3:GetObject'
-            Effect: Allow
-            Principal:
-              Service: codebuild.amazonaws.com
-            Resource: !Sub "${Bucket.Arn}/*"
-            Condition:
-              StringLike:
-                "aws:SourceArn": !Sub "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/*"
 
 # =============================================================================
 # OUTPUTS
@@ -226,14 +171,13 @@ Resources:
 #
 
 Outputs:
-  BucketName:
+  LoggingBucketName:
     Description: The S3 Bucket Name used for CloudFront Origin.
     Value: !Ref Bucket
-  CodeBuildSourceArn:
-    Condition: UseBuildSourceArn
-    Description: This is the Arn of CodeBuild project that manages this bucket's objects.
-    Value: !Ref BuildSourceArn
-  LoggingBucketName:
-    Condition: HasLoggingBucket
-    Description: The S3 Bucket Name used for logging.
-    Value: !Ref S3LogBucketName
+    Export:
+      Name: !Sub "${Prefix}-${ProjectId}-LoggingBucketName"
+  LoggingBucketArn:
+    Description: The S3 Bucket Arn used for CloudFront Origin.
+    Value: !GetAtt Bucket.Arn
+    Export:
+      Name: !Sub "${Prefix}-${ProjectId}-LoggingBucketArn"

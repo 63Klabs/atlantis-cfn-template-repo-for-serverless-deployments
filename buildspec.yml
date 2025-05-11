@@ -1,6 +1,6 @@
 version: 0.2
 
-# Recommended Pipeline Template "templates/v2/pipeline/template-pipeline-two-stage"
+# Recommended Pipeline Template "templates/v2/pipeline/template-pipeline-build-only"
 # Assumes HOST_BUCKET is already set in CodeBuild environment variables
 
 env:
