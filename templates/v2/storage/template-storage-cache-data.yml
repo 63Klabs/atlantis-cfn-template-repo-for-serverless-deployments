@@ -194,25 +194,31 @@ Outputs:
   DynamoDbWebConsole:
     Description: "DynamoDb Table Web Console"
     Value: !Sub "https://console.aws.amazon.com/dynamodbv2/home?region=${AWS::Region}#table?name=${CacheDataDynamoDbTable}&initialTableGroup=%23all"
+
   S3BucketWebConsole:
     Description: "S3 Bucket Web Console"
     Value: !Sub "https://s3.console.aws.amazon.com/s3/buckets/${CacheDataS3Bucket}?region=${AWS::Region}"
+
   # Exports
+
   DynamoDbTableExport:
     Description: "DynamoDb Table Name"
     Value: !Ref CacheDataDynamoDbTable
     Export:
       Name: !Sub '${Prefix}-${ProjectId}-CacheDataDynamoDbTable'
+
   S3BucketExport:
     Description: "S3 Bucket Name"
     Value: !Ref CacheDataS3Bucket
     Export:
       Name: !Sub '${Prefix}-${ProjectId}-CacheDataS3Bucket'
+
   S3BucketArnExport:
     Description: "S3 Bucket ARN"
     Value: !GetAtt CacheDataS3Bucket.Arn
     Export:
       Name: !Sub '${Prefix}-${ProjectId}-CacheDataS3BucketArn'
+
   DynamoDbTableArnExport:
     Description: "DynamoDb Table ARN"
     Value: !GetAtt CacheDataDynamoDbTable.Arn

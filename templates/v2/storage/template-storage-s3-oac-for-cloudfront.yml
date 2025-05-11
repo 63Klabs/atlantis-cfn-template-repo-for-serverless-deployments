@@ -34,6 +34,7 @@ Metadata:
         Parameters:
           - AlarmNotificationEmail
           - PermissionsBoundaryARN
+          - S3LogBucketName
 
 # =============================================================================
 # PARAMETERS
@@ -54,6 +55,7 @@ Parameters:
     MinLength: 2
     MaxLength: 8
     ConstraintDescription: "2 to 8 characters. Lower case alphanumeric and dashes. Must start with a letter and end with a letter or number. Length of Prefix + Project ID should not exceed 28 characters."
+
   ProjectId:
     Type: String
     Description: "This is the Project or Application Identifier. If you receive 'S3 bucket name too long' errors during stack creation, then you must shorten the Project ID or use an S3 Org Prefix. Due to resource naming length restrictions, length of Prefix + Project ID should not exceed 28 characters. Resources are named <Prefix>-<ProjectId>-<StageId>-<ResourceId>"
@@ -61,12 +63,14 @@ Parameters:
     MinLength: 2
     MaxLength: 26
     ConstraintDescription: "Minimum of 2 characters (suggested maximum of 20). Lower case alphanumeric and dashes. Must start with a letter and end with a letter or number. Length of Prefix + Project ID should not exceed 28 characters."
+
   S3BucketNameOrgPrefix:
     Type: String
     Description: "By default, to enforce uniqueness, buckets include account and region in the bucket name. However, due to character limits, you can specify your own S3 prefix (like an org code). This will be used in addition to the Prefix entered above. Note that this length is shared with the recommended length of 20 characters for Resource Identifiers. So if you have a 10 character S3BucketNameOrgPrefix, you are limited to 10 characters for your bucket name identifier in your templates. Buckets are named <Prefix>-<Region>-<AccountId>-<ProjectId>-<StageId>-<ResourceId> or <S3OrgPrefix>-<Prefix>-<ProjectId>-<StageId>-<ResourceId>"
     Default: ""
     AllowedPattern: "^[a-z0-9][a-z0-9-]{0,18}[a-z0-9]$|^$"
     ConstraintDescription: "May be empty or 2 to 20 characters (8 or less recommended). Lower case alphanumeric and dashes. Must start and end with a letter or number."
+
   RolePath:
     Type: String
     Description: "Path to use for IAM Roles and Policies. You may wish to separate out your applications from users, or create seperate paths per prefix or application. Specific paths may required by permission boundaries. Ex: /ws-hello-world-test/ or /app_role/"
@@ -97,6 +101,12 @@ Parameters:
     AllowedPattern: "^$|^arn:aws:iam::\\d{12}:policy\\/[\\w+=,.@\\-\\/]*[\\w+=,.@\\-]+$"
     ConstraintDescription: "Must be empty or a valid IAM Policy ARN in the format: arn:aws:iam::{account_id}:policy/{policy_name}"
 
+  S3LogBucketName:
+    Type: String
+    Description: "The name of the S3 bucket used for logging. This is a required parameter for the S3 bucket."
+    Default: ""
+    AllowedPattern: "^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$|^$"
+    ConstraintDescription: "Must be a valid S3 bucket name or empty. Must be between 3 and 63 characters long. Lower case alphanumeric and dashes. Must start and end with a letter or number."
 
 # =============================================================================
 # CONDITIONS
@@ -107,6 +117,7 @@ Parameters:
 Conditions:
   UseS3BucketNameOrgPrefix: !Not [!Equals [!Ref S3BucketNameOrgPrefix, ""]]
   HasPermissionsBoundaryARN: !Not [!Equals [!Ref PermissionsBoundaryARN, ""]]
+  HasLoggingBucket: !Not [!Equals [!Ref S3LogBucketName, ""]]
 
 # =============================================================================
 # RESOURCES
@@ -135,6 +146,15 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
+      LoggingConfiguration: !If
+      - HasLoggingBucket
+      - DestinationBucketName: !Ref S3LogBucketName
+        LogFilePrefix: !Join
+          - "-"
+          - - !If [UseS3BucketNameOrgPrefix, !Sub "${S3BucketNameOrgPrefix}-${Prefix}", !Sub "${Prefix}" ]
+            - !Sub "${ProjectId}-${AWS::Region}-${AWS::AccountId}"
+      - !Ref AWS::NoValue
+
       NotificationConfiguration:
         LambdaConfigurations:
           - Event: "s3:ObjectCreated:*"
@@ -432,12 +452,20 @@ Resources:
 #
 
 Outputs:
+
   BucketName:
     Description: The S3 Bucket Name used for CloudFront Origin.
     Value: !Ref Bucket
+
   OriginBucketDomainForCloudFront:
     Description: Domain to use for CloudFront S3 Origin.
     Value: !GetAtt Bucket.DomainName
+
   AllowedCloudFrontAndCodeBuild:
     Description: Access to bucket is restricted to CloudFront (Read) and CodeBuild (CRUD) with the following atlantis:Application tag value.
     Value: !Sub "${Prefix}-${ProjectId}"
+
+  LoggingBucketName:
+    Condition: HasLoggingBucket
+    Description: The S3 Bucket Name used for logging.
+    Value: !Ref S3LogBucketName

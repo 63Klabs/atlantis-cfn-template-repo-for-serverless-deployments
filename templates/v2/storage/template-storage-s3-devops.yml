@@ -226,13 +226,16 @@ Resources:
 #
 
 Outputs:
+
   BucketName:
     Description: The S3 Bucket Name used for CloudFront Origin.
     Value: !Ref Bucket
+
   CodeBuildSourceArn:
     Condition: UseBuildSourceArn
     Description: This is the Arn of CodeBuild project that manages this bucket's objects.
     Value: !Ref BuildSourceArn
+
   LoggingBucketName:
     Condition: HasLoggingBucket
     Description: The S3 Bucket Name used for logging.

@@ -171,11 +171,13 @@ Resources:
 #
 
 Outputs:
+
   LoggingBucketName:
     Description: The S3 Bucket Name used for CloudFront Origin.
     Value: !Ref Bucket
     Export:
       Name: !Sub "${Prefix}-${ProjectId}-LoggingBucketName"
+      
   LoggingBucketArn:
     Description: The S3 Bucket Arn used for CloudFront Origin.
     Value: !GetAtt Bucket.Arn
