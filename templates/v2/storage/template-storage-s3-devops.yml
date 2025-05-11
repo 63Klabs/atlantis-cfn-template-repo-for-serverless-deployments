@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: "S3 for storing shared DevOps files (buildspec, buildscripts, reusable Lambda src) - Deployed using SAM"
+Description: "S3 for storing shared and latest (non-versioned) DevOps files (buildspec, buildscripts, reusable Lambda src) - Deployed using SAM"
 
 # Atlantis for AWS SAM Deployments
 # Storage Infrastructure Template
@@ -41,6 +41,11 @@ Metadata:
           - Prefix
           - ProjectId
           - S3BucketNameOrgPrefix
+      -
+        Label:
+          default: "Resource Access"
+        Parameters:
+          - BuildSourceArn
 
 # =============================================================================
 # PARAMETERS
@@ -77,6 +82,13 @@ Parameters:
     AllowedPattern: "^[a-z0-9][a-z0-9-]{0,18}[a-z0-9]$|^$"
     ConstraintDescription: "May be empty or 2 to 20 characters (8 or less recommended). Lower case alphanumeric and dashes. Must start and end with a letter or number."
 
+  BuildSourceArn:
+    Type: String
+    Description: "The ARN of the CodeBuild project that will be managing objects in this bucket. It will be granted read, write, delete permissions."
+    Default: ""
+    AllowedPattern: "^arn:aws:codebuild:[a-z0-9-]+:[0-9]{12}:project/[a-zA-Z0-9-_]+$|^$"
+    ConstraintDescription: "Must be a valid CodeBuild ARN or empty."
+
 # =============================================================================
 # CONDITIONS
 # -----------------------------------------------------------------------------
@@ -85,6 +97,7 @@ Parameters:
 
 Conditions:
   UseS3BucketNameOrgPrefix: !Not [!Equals [!Ref S3BucketNameOrgPrefix, ""]]
+  UseBuildSourceArn: !Not [!Equals [!Ref BuildSourceArn, ""]]
 
 # =============================================================================
 # RESOURCES
@@ -97,13 +110,15 @@ Resources:
   # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-s3-bucket.html
   Bucket:
     Type: AWS::S3::Bucket
-    DeletionPolicy: Retain # Set to Retain because this is critical infrastructure
+    DeletionPolicy: Retain # Set to Retain because this is critical infrastructure - Even though it could be recreated, we want to keep the data as it is "live"
     UpdateReplacePolicy: Retain # Set to Retain because this is critical infrastructure
     Properties:
       BucketName: !Join
         - "-"
         - - !If [UseS3BucketNameOrgPrefix, !Sub "${S3BucketNameOrgPrefix}-${Prefix}", !Sub "${Prefix}" ]
           - !Sub "${ProjectId}-${AWS::Region}-${AWS::AccountId}"
+      VersioningConfiguration:
+        Status: Suspended
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - BucketKeyEnabled: true
@@ -134,30 +149,54 @@ Resources:
             Condition:
               Bool:
                 "aws:SecureTransport": false
-          - Sid: AllowCloudFrontServicePrincipalReadOnly
+
+          # We many not have the BuildSourceArn at the time of stack creation.
+          # Or, we may be using manual deployments and not using CodeBuild.
+          # So we will only add the CRUD permissions if the BuildSourceArn is provided.
+          - !If
+            - UseBuildSourceArn
+            - Sid: AllowCodeBuildSourceReadWriteDelete
+              Action:
+              - 's3:GetObject'
+              - 's3:PutObject'
+              - 's3:DeleteObject'
+              Effect: Allow
+              Principal:
+                Service: codebuild.amazonaws.com
+              Resource: !Sub "${Bucket.Arn}/*" # TODO: Add in ${aws:???Tag/Stage}
+              Condition:
+                StringLike:
+                  "aws:SourceArn": !Ref BuildSourceArn
+            - !Ref AWS::NoValue
+
+                
+          # Allow CloudFormation access with account and region restrictions - Stack Arn may not exist yet so we use different Account and Region
+          - Sid: AllowCloudFormationReadAccess
             Action:
             - 's3:GetObject'
+            - 's3:ListBucket'
             Effect: Allow
             Principal:
-              Service: cloudfront.amazonaws.com
-            Resource: !Sub "${Bucket.Arn}/*" # TODO: Add in ${aws:???Tag/Stage}/public/*
+              Service: cloudformation.amazonaws.com
+            Resource:
+            - !GetAtt Bucket.Arn
+            - !Sub "${Bucket.Arn}/*"
             Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref AWS::AccountId
               StringLike:
-                "aws:SourceArn": !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/*"
-              # StringEquals:
-              #   "aws:ResourceTag/atlantis:Application": !Sub "${Prefix}-${ProjectId}"
-          - Sid: AllowCodeBuildReadWriteDelete
+                "aws:SourceArn": !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:*"
+
+          - Sid: AllowCodeBuildReadAccess
             Action:
             - 's3:GetObject'
-            - 's3:PutObject'
-            - 's3:DeleteObject'
             Effect: Allow
             Principal:
               Service: codebuild.amazonaws.com
-            Resource: !Sub "${Bucket.Arn}/*" # TODO: Add in ${aws:???Tag/Stage}
+            Resource: !Sub "${Bucket.Arn}/*"
             Condition:
               StringLike:
-                "aws:SourceArn": !Sub "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${Prefix}-${ProjectId}-*"
+                "aws:SourceArn": !Sub "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/*"
 
 # =============================================================================
 # OUTPUTS
@@ -172,6 +211,7 @@ Outputs:
   BucketName:
     Description: The S3 Bucket Name used for CloudFront Origin.
     Value: !Ref Bucket
-  AllowedCodeBuild:
-    Description: Read access is available to all in this account. CRUD is restricted to CodeBuild with the following atlantis:Application tag value.
-    Value: !Sub "${Prefix}-${ProjectId}"
+  CodeBuildSourceArn:
+    Condition: UseBuildSourceArn
+    Description: This is the Arn of CodeBuild project that manages this bucket's objects.
+    Value: !Ref BuildSourceArn
