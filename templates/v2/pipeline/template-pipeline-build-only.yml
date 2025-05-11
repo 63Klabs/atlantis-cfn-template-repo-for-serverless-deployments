@@ -200,7 +200,7 @@ Conditions:
   HasPermissionsBoundaryArn: !Not [!Equals [!Ref PermissionsBoundaryArn, ""]]
   UseOwnS3DeployBucket: !Equals [!Ref DeployBucket, ""]
   HasHostBucket: !Not [!Equals [!Ref HostBucket, ""]]
-  HasBuildSpec: !Not [!Equals [!Ref BuildSpec, ""]]
+  HasCustomBuildSpecLocation: !Not [!Equals [!Ref BuildSpec, ""]]
 
 # =============================================================================
 # RESOURCES
@@ -435,6 +435,27 @@ Resources:
                 - !Sub "arn:aws:s3:::${HostBucket}/*"
             - !Ref 'AWS::NoValue'
 
+          # Copy and read from a remote bucket containing the buildspec.yml file
+          - !If 
+            - HasCustomBuildSpecLocation
+            - Sid: CopyBuildSpecFromS3ForBuild
+              Action:
+              - s3:Get*
+              - s3:List*
+              Effect: Allow
+              Resource: 
+                - !Join
+                  - ""
+                  - - "arn:aws:s3:::"
+                    - !Select [0, !Split ["/", !Select [1, !Split ["s3://", !Ref BuildSpec]]]]
+                # Specific file permission - exact path to the buildspec file
+                - !Join
+                  - ""
+                  - - "arn:aws:s3:::"
+                    - !Select [1, !Split ["s3://", !Ref BuildSpec]]
+
+            - !Ref 'AWS::NoValue'
+
   # ---------------------------------------------------------------------------
   # -- AWS CodePipeline Resources --
   # --
@@ -537,7 +558,7 @@ Resources:
           Value: "production" # We do not need dev dependencies deployed to Lambda as they are for local development. IF you needed to run tests during build, then temporarily set in buildspec but be sure final deploy is based on production dependencies. (Build twice)  
       Source:
         Type: CODEPIPELINE
-        BuildSpec: !If [HasBuildSpec, !Ref BuildSpec, "buildspec.yml"]
+        BuildSpec: !If [HasCustomBuildSpecLocation, !Ref BuildSpec, "buildspec.yml"]
 
   # ---------------------------------------------------------------------------
   # -- Log Group for CodeBuild Project --
