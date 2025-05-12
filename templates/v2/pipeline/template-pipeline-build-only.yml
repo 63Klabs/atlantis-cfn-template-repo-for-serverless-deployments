@@ -562,7 +562,10 @@ Resources:
           Value: "production" # We do not need dev dependencies deployed to Lambda as they are for local development. IF you needed to run tests during build, then temporarily set in buildspec but be sure final deploy is based on production dependencies. (Build twice)  
       Source:
         Type: CODEPIPELINE
-        BuildSpec: !If [HasS3BuildSpecLocation, !Ref BuildSpec, "buildspec.yml"]
+        BuildSpec: !If 
+          - HasS3BuildSpecLocation
+          - !Sub "${BuildSpec}"
+          - "buildspec.yml"
 
   # ---------------------------------------------------------------------------
   # -- Log Group for CodeBuild Project --
