@@ -853,6 +853,8 @@ Resources:
   CodeBuildLogGroup:
     Type: AWS::Logs::LogGroup
     Condition: IsNotDevelopment
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
     Properties:
       LogGroupName: !Sub "/aws/codebuild/${Prefix}-${ProjectId}-${StageId}-Build"
       RetentionInDays: 90 # Set to your own retention policy - how long do you want to keep build logs?

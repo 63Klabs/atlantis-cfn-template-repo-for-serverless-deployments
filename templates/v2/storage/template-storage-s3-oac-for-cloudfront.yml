@@ -407,6 +407,8 @@ Resources:
 
   CloudFrontInvalidatorLogGroup:
     Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Retain
     Properties:
       LogGroupName: !Sub '/aws/lambda/${Prefix}-${ProjectId}-CloudFrontInvalidator'
       RetentionInDays: 180
