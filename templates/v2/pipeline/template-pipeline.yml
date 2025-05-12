@@ -4,7 +4,7 @@ Description: "CodePipeline for Automated Deployments from repository - Deployed 
 # Atlantis for AWS SAM Deployments
 # Pipeline Infrastructure Template
 # Author: Chad Kluck - 63klabs.net
-# Version: v2.0.14/2025-05-08
+# Version: v2.0.15/2025-05-12
 
 # Documentation, Issues/Feature Requests, Latest Updates, and Security Reports on GitHub:
 # https://github.com/63klabs/atlantis-cfn-template-repo-for-serverless-deployments/
@@ -41,6 +41,8 @@ Metadata:
         Parameters:
           - DeployEnvironment
           - DeployBucket
+          - S3StaticHostBucket
+          - BuildSpec
       -
         Label:
           default: "External Resources and Alarm Notifications"
@@ -52,8 +54,8 @@ Metadata:
         Label:
           default: "Code Repository"
         Parameters:
-          - CodeCommitRepository
-          - CodeCommitBranch
+          - Repository
+          - RepositoryBranch
 
 # =============================================================================
 # PARAMETERS
@@ -94,7 +96,7 @@ Parameters:
 
   StageId:
     Type: String
-    Description: "This is an alias for the branch. It does not need to match CodeCommitBranch or DeployEnvironment. Due to resource naming restrictions you can use this to provide shorter names without special characters that are allowed in branch names. For example if you have a 'test/feature-98' branch, you could use 'tf98' as the StageId. Resources are named <Prefix>-<ProjectId>-<StageId>-<ResourceId>"
+    Description: "This is an alias for the branch. It does not need to match RepositoryBranch or DeployEnvironment. Due to resource naming restrictions you can use this to provide shorter names without special characters that are allowed in branch names. For example if you have a 'test/feature-98' branch, you could use 'tf98' as the StageId. Resources are named <Prefix>-<ProjectId>-<StageId>-<ResourceId>"
     AllowedPattern: "^[a-z][a-z0-9-]{0,6}[a-z0-9]$"
     MinLength: 2
     MaxLength: 8
@@ -131,6 +133,19 @@ Parameters:
     AllowedPattern: "^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$|^$"
     ConstraintDescription: "May only contain alphanumeric characters, dashes, and must begin and end with a letter or number."
 
+  S3StaticHostBucket:
+    Type: String
+    Description: "An already existing S3 bucket name the build and deploy stage will copy files to. Passed as S3_STATIC_HOST_BUCKET to CodeBuild. Can be left blank if CodeBuild will programmatically construct the bucket name, or doesn't need a S3_STATIC_HOST_BUCKET value."
+    Default: ""
+    AllowedPattern: "^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$|^$"
+    ConstraintDescription: "May only contain alphanumeric characters, dashes, and must begin and end with a letter or number."
+
+  BuildSpec:
+    Type: String
+    Description: "The local or S3 URI of the CodeBuild buildspec.yml file. For example, 'buildspec.yml', 'application-infrastructure/buildspec.yml' or 's3://mybucket/buildspec.yml'. Best practice is to have a single buildspec file for all deployments. This option exists if you cannot store your buildspec file with your source code OR wish to use a central buildspec for a group of deployments. This is not for managing multiple buildspecs on a single repo. Default is buildspec.yml, and blank will use the default buildspec.yml in the root of the repository. Though Source.BuildSpec uses an ARN for S3 locations, an S3 url is requested to make it easier to parse for permissions and other uses."
+    Default: "application-infrastructure/buildspec.yml"
+    AllowedPattern: "^s3:\\/\\/[a-zA-Z0-9][a-zA-Z0-9\\-]{1,61}[a-zA-Z0-9]\\/.*$|^[a-zA-Z0-9_\\-\\/]*(buildspec\\.yml)$|^$"
+    ConstraintDescription: "Must be a valid S3 URI or a local path ending with 'buildspec.yml'. For example, 'buildspec.yml', 'application-infrastructure/buildspec.yml' or 's3://mybucket/buildspec.yml'. May not be empty."
 
   # ---------------------------------------------------------------------------
   # External Resources and Alarm Notifications
@@ -159,14 +174,14 @@ Parameters:
   # Code Repository
   # Used only by this template-pipeline and not passed on to application infrastructure stack except as tags
 
-  CodeCommitRepository:
+  Repository:
     Type: String
     Description: "What repository will be used?"
     MinLength: 2
     AllowedPattern: "^[a-zA-Z0-9][a-zA-Z0-9_\\-]{0,62}[a-zA-Z0-9]$"
     ConstraintDescription: "Must be a valid CodeCommit repository name. Must be at least 2 characters long."
 
-  CodeCommitBranch:
+  RepositoryBranch:
     Type: String
     Description: What branch of CodeCommit will be used? Typically this is the same name as the stage, but may be different if there are multiple deploys operating off the same branch.
     Default: "main"
@@ -219,6 +234,11 @@ Conditions:
   UseS3BucketNameOrgPrefix: !Not [!Equals [!Ref S3BucketNameOrgPrefix, ""]]
   HasPermissionsBoundaryArn: !Not [!Equals [!Ref PermissionsBoundaryArn, ""]]
   UseOwnS3DeployBucket: !Equals [!Ref DeployBucket, ""]
+  HasS3StaticHostBucket: !Not [!Equals [!Ref S3StaticHostBucket, ""]]
+  HasS3BuildSpecLocation: !And 
+    - !Not [!Equals [!Ref BuildSpec, ""]]
+    - !Equals [!Select [0, !Split [":", !Ref BuildSpec]], "s3"]
+  UseDefaultBuildSpecLocation: !Equals [!Ref BuildSpec, ""]
 
 # =============================================================================
 # RESOURCES
@@ -304,7 +324,7 @@ Resources:
             - codecommit:GetCommit
             - codecommit:UploadArchive
             - codecommit:GetUploadArchiveStatus
-            Resource: !Sub 'arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:${CodeCommitRepository}'
+            Resource: !Sub 'arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:${Repository}'
 
           - Sid: BuildPhase
             Action:
@@ -381,14 +401,6 @@ Resources:
             - !If [UseOwnS3DeployBucket, !GetAtt S3DeployBucket.Arn, !Sub "arn:aws:s3:::${DeployBucket}"]
             - !If [UseOwnS3DeployBucket, !Join [ '/', [ !GetAtt S3DeployBucket.Arn, '*' ] ], !Sub "arn:aws:s3:::${DeployBucket}/*"]
 
-          # - Sid: "AllowCodeBuildToManageItsKeys" # TODO: Scope Down
-          #   Effect: Allow
-          #   Action:
-          #   - kms:GenerateDataKey*
-          #   - kms:Encrypt
-          #   - kms:Decrypt
-          #   Resource: '*'
-
           - Sid: "SsmAccessDuringCodeBuild"
             Action:
             - ssm:PutParameter # for generating tokens and keys
@@ -451,6 +463,43 @@ Resources:
               - !If [UseS3BucketNameOrgPrefix, !Sub "${S3BucketNameOrgPrefix}-", "" ]
               - !Sub "${Prefix}-${ProjectId}-${StageId}-*/*"
 
+          # A S3StaticHostBucket if HasS3StaticHostBucket condition is met
+          # create a policy statement if HasS3StaticHostBucket condition is met
+          - !If
+            - HasS3StaticHostBucket
+            - Sid: CopyAssetsToS3HostBucketDuringBuild
+              Action:
+              - s3:PutObject
+              - s3:Get*
+              - s3:List*
+              - s3:DeleteObject
+              Effect: Allow
+              Resource: 
+                - !Sub "arn:aws:s3:::${S3StaticHostBucket}"
+                - !Sub "arn:aws:s3:::${S3StaticHostBucket}/*"
+            - !Ref 'AWS::NoValue'
+
+          # Copy and read from a remote bucket containing the buildspec.yml file
+          - !If 
+            - HasS3BuildSpecLocation
+            - Sid: CopyBuildSpecFromS3ForBuild
+              Action:
+              - s3:Get*
+              - s3:List*
+              Effect: Allow
+              Resource: 
+                - !Join
+                  - ""
+                  - - "arn:aws:s3:::"
+                    - !Select [0, !Split ["/", !Select [1, !Split ["s3://", !Ref BuildSpec]]]]
+                # Specific file permission - exact path to the buildspec file
+                - !Join
+                  - ""
+                  - - "arn:aws:s3:::"
+                    - !Select [1, !Split ["s3://", !Ref BuildSpec]]
+
+            - !Ref 'AWS::NoValue'
+            
   # -- CodeDeploy Service Role --
 
   CodeDeployServiceRole:
@@ -770,13 +819,13 @@ Resources:
           - referenceCreated
           - referenceUpdated
           referenceName: 
-          - !Ref CodeCommitBranch
+          - !Ref RepositoryBranch
           referenceType:
           - branch
         detail-type:
         - CodeCommit Repository State Change
         resources:
-        - !Sub 'arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:${CodeCommitRepository}'
+        - !Sub 'arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:${Repository}'
         source:
         - aws.codecommit
       State: ENABLED
@@ -830,21 +879,38 @@ Resources:
           Value: !Ref 'ProjectId'
         - Name: STAGE_ID
           Value: !Ref 'StageId'
+        - Name: S3_BUCKET_NAME_ORG_PREFIX
+          Value: !If [UseS3BucketNameOrgPrefix, !Sub "${S3BucketNameOrgPrefix}-", "" ]
         - Name: REPOSITORY
-          Value: !Ref 'CodeCommitRepository'
+          Value: !Ref 'Repository'
         - Name: REPOSITORY_BRANCH
-          Value: !Ref 'CodeCommitBranch'
+          Value: !Ref 'RepositoryBranch'
         - Name: PARAM_STORE_HIERARCHY
           Value: !Sub '${ParameterStoreHierarchy}${DeployEnvironment}/${Prefix}-${ProjectId}-${StageId}/'
         - Name: DEPLOY_ENVIRONMENT
           Value: !Ref 'DeployEnvironment'
         - Name: ALARM_NOTIFICATION_EMAIL
           Value: !Ref 'AlarmNotificationEmail'
+        - Name: S3_STATIC_HOST_BUCKET
+          Value: !Ref 'S3StaticHostBucket'
+        - Name: ROLE_PATH
+          Value: !Ref 'RolePath'
+        - Name: PERMISSIONS_BOUNDARY_ARN
+          Value: !Ref 'PermissionsBoundaryArn'
         - Name: NODE_ENV
           Value: "production" # We do not need dev dependencies deployed to Lambda as they are for local development. IF you needed to run tests during build, then temporarily set in buildspec but be sure final deploy is based on production dependencies. (Build twice)  
       Source:
         Type: CODEPIPELINE
-        BuildSpec: application-infrastructure/buildspec.yml # Explicitly set just to note that there should only be one buildspec (not buildspec-dev.yml or buildspec-prod.yml) which if needed to process differently for an environment, that logic should be in the buildspec and SAM template. Otherwise management of 2 or more would be difficult. We have Deploy Stage and Deploy Environment variables so use them.
+        BuildSpec: !If 
+          - HasS3BuildSpecLocation
+          - !Join
+            - ""
+            - - "arn:aws:s3:::"
+              - !Select [1, !Split ["s3://", !Ref BuildSpec]]
+          - !If 
+            - UseDefaultBuildSpecLocation
+            - "buildspec.yml"
+            - !Ref BuildSpec
 
   # ---------------------------------------------------------------------------
   # -- Log Group for CodeBuild Project --
@@ -1004,9 +1070,9 @@ Resources:
             Provider: CodeCommit
             Version: 1
           Configuration:
-            BranchName: !Ref CodeCommitBranch
+            BranchName: !Ref RepositoryBranch
             PollForSourceChanges: false
-            RepositoryName: !Ref CodeCommitRepository
+            RepositoryName: !Ref Repository
           InputArtifacts: []
           OutputArtifacts:
           - Name: !Sub "${ProjectId}-${StageId}-SourceArtifact"
@@ -1142,8 +1208,4 @@ Outputs:
     Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/codesuite/codepipeline/pipelines/${Prefix}-${ProjectId}-${StageId}-Pipeline/view?region=${AWS::Region}"
   CodeCommitRepo:
     Description: "CodeCommitRepo"
-    Value: !Join
-      - ""
-      - - !Sub "https://${AWS::Region}.console.aws.amazon.com/codesuite/codecommit/repositories/"
-        - !Ref CodeCommitRepository
-        - !Sub "/browse?region=${AWS::Region}"
+    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/codesuite/codecommit/repositories/${Repository}/browse?region=${AWS::Region}"

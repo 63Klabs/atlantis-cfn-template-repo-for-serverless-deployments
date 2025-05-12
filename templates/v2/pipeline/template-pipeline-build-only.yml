@@ -4,7 +4,7 @@ Description: "CodePipeline for Automated Deployments from repository using only 
 # Atlantis for AWS SAM Deployments
 # Pipeline Infrastructure Template
 # Author: Chad Kluck - 63klabs.net
-# Version: v2.0.2/2025-05-09
+# Version: v2.0.3/2025-05-12
 
 # Documentation, Issues/Feature Requests, Latest Updates, and Security Reports on GitHub:
 # https://github.com/63klabs/atlantis-cfn-template-repo-for-serverless-deployments/
@@ -40,7 +40,7 @@ Metadata:
         Parameters:
           - DeployEnvironment
           - DeployBucket
-          - HostBucket
+          - S3StaticHostBucket
           - BuildSpec
       -
         Label:
@@ -132,19 +132,19 @@ Parameters:
     AllowedPattern: "^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$|^$"
     ConstraintDescription: "May only contain alphanumeric characters, dashes, and must begin and end with a letter or number."
 
-  HostBucket:
+  S3StaticHostBucket:
     Type: String
-    Description: "An already existing S3 bucket name the build and deploy stage will copy files to. Passed as HOST_BUCKET to CodeBuild. Can be left blank if CodeBuild will programmatically construct the bucket name, or doesn't need a HOST_BUCKET value."
+    Description: "An already existing S3 bucket name the build and deploy stage will copy files to. Passed as S3_STATIC_HOST_BUCKET to CodeBuild. Can be left blank if CodeBuild will programmatically construct the bucket name, or doesn't need a S3_STATIC_HOST_BUCKET value."
     Default: ""
     AllowedPattern: "^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$|^$"
     ConstraintDescription: "May only contain alphanumeric characters, dashes, and must begin and end with a letter or number."
 
   BuildSpec:
     Type: String
-    Description: "The local or S3 URI of the CodeBuild buildspec.yml file. For example, s3://mybucket/buildspec.yml. Best practice is to have one buildspec file for all deployments. This option exists if you cannot store your buildspec file with your source code OR wish to use a central buildspec for all deployments. Not for managing multiple buildspecs on a single repo. (buildspec-dev.yml, buildspec-prod.yml, etc). Default is buildspec.yml, and blank will use the default buildspec.yml in the root of the repository."
+    Description: "The local or S3 URI of the CodeBuild buildspec.yml file. For example, 'buildspec.yml', 'deploy/buildspec.yml' or 's3://mybucket/buildspec.yml'. Best practice is to have a single buildspec file for all deployments. This option exists if you cannot store your buildspec file with your source code OR wish to use a central buildspec for a group of deployments. This is not for managing multiple buildspecs on a single repo. Default is buildspec.yml, and blank will use the default buildspec.yml in the root of the repository. Though Source.BuildSpec uses an ARN for S3 locations, an S3 url is requested to make it easier to parse for permissions and other uses."
     Default: "buildspec.yml"
-    AllowedPattern: "^s3:\\/\\/[a-zA-Z0-9][a-zA-Z0-9\\-]{1,61}[a-zA-Z0-9]\\/.*$|buildspec\\.yml|^$"
-    ConstraintDescription: "Must be a valid S3 URI or 'buildspec.yml'. For example, s3://mybucket/buildspec.yml. May be empty."
+    AllowedPattern: "^s3:\\/\\/[a-zA-Z0-9][a-zA-Z0-9\\-]{1,61}[a-zA-Z0-9]\\/.*$|^[a-zA-Z0-9_\\-\\/]*(buildspec\\.yml)$|^$"
+    ConstraintDescription: "Must be a valid S3 URI or a local path ending with 'buildspec.yml'. For example, 'buildspec.yml', 'deploy/buildspec.yml' or 's3://mybucket/buildspec.yml'. May be empty."
 
   # ---------------------------------------------------------------------------
   # External Resources and Alarm Notifications
@@ -199,11 +199,11 @@ Conditions:
   UseS3BucketNameOrgPrefix: !Not [!Equals [!Ref S3BucketNameOrgPrefix, ""]]
   HasPermissionsBoundaryArn: !Not [!Equals [!Ref PermissionsBoundaryArn, ""]]
   UseOwnS3DeployBucket: !Equals [!Ref DeployBucket, ""]
-  HasHostBucket: !Not [!Equals [!Ref HostBucket, ""]]
-  # Update this condition to check if BuildSpec starts with s3://
+  HasS3StaticHostBucket: !Not [!Equals [!Ref S3StaticHostBucket, ""]]
   HasS3BuildSpecLocation: !And 
     - !Not [!Equals [!Ref BuildSpec, ""]]
     - !Equals [!Select [0, !Split [":", !Ref BuildSpec]], "s3"]
+  UseDefaultBuildSpecLocation: !Equals [!Ref BuildSpec, ""]
 
 
 # =============================================================================
@@ -423,10 +423,10 @@ Resources:
               - !If [UseS3BucketNameOrgPrefix, !Sub "${S3BucketNameOrgPrefix}-", "" ]
               - !Sub "${Prefix}-${ProjectId}-${StageId}-*/*"
 
-          # A HostBucket if HasHostBucket condition is met
-          # create a policy statement if HasHostBucket condition is met
+          # A S3StaticHostBucket if HasS3StaticHostBucket condition is met
+          # create a policy statement if HasS3StaticHostBucket condition is met
           - !If
-            - HasHostBucket
+            - HasS3StaticHostBucket
             - Sid: CopyAssetsToS3HostBucketDuringBuild
               Action:
               - s3:PutObject
@@ -435,8 +435,8 @@ Resources:
               - s3:DeleteObject
               Effect: Allow
               Resource: 
-                - !Sub "arn:aws:s3:::${HostBucket}"
-                - !Sub "arn:aws:s3:::${HostBucket}/*"
+                - !Sub "arn:aws:s3:::${S3StaticHostBucket}"
+                - !Sub "arn:aws:s3:::${S3StaticHostBucket}/*"
             - !Ref 'AWS::NoValue'
 
           # Copy and read from a remote bucket containing the buildspec.yml file
@@ -546,6 +546,8 @@ Resources:
           Value: !Ref 'ProjectId'
         - Name: STAGE_ID
           Value: !Ref 'StageId'
+        - Name: S3_BUCKET_NAME_ORG_PREFIX
+          Value: !If [UseS3BucketNameOrgPrefix, !Sub "${S3BucketNameOrgPrefix}-", "" ]
         - Name: REPOSITORY
           Value: !Ref 'Repository'
         - Name: REPOSITORY_BRANCH
@@ -556,8 +558,12 @@ Resources:
           Value: !Ref 'DeployEnvironment'
         - Name: ALARM_NOTIFICATION_EMAIL
           Value: !Ref 'AlarmNotificationEmail'
-        - Name: HOST_BUCKET
-          Value: !Ref 'HostBucket'
+        - Name: S3_STATIC_HOST_BUCKET
+          Value: !Ref 'S3StaticHostBucket'
+        - Name: ROLE_PATH
+          Value: !Ref 'RolePath'
+        - Name: PERMISSIONS_BOUNDARY_ARN
+          Value: !Ref 'PermissionsBoundaryArn'
         - Name: NODE_ENV
           Value: "production" # We do not need dev dependencies deployed to Lambda as they are for local development. IF you needed to run tests during build, then temporarily set in buildspec but be sure final deploy is based on production dependencies. (Build twice)  
       Source:
@@ -568,7 +574,10 @@ Resources:
             - ""
             - - "arn:aws:s3:::"
               - !Select [1, !Split ["s3://", !Ref BuildSpec]]
-          - "buildspec.yml"
+          - !If
+            - UseDefaultBuildSpecLocation
+            - "buildspec.yml"
+            - !Ref BuildSpec
 
 
   # ---------------------------------------------------------------------------
