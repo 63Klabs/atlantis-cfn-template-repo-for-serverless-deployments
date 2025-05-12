@@ -200,7 +200,11 @@ Conditions:
   HasPermissionsBoundaryArn: !Not [!Equals [!Ref PermissionsBoundaryArn, ""]]
   UseOwnS3DeployBucket: !Equals [!Ref DeployBucket, ""]
   HasHostBucket: !Not [!Equals [!Ref HostBucket, ""]]
-  HasCustomBuildSpecLocation: !Not [!Equals [!Ref BuildSpec, ""]]
+  # Update this condition to check if BuildSpec starts with s3://
+  HasS3BuildSpecLocation: !And 
+    - !Not [!Equals [!Ref BuildSpec, ""]]
+    - !Equals [!Select [0, !Split [":", !Ref BuildSpec]], "s3"]
+
 
 # =============================================================================
 # RESOURCES
@@ -437,7 +441,7 @@ Resources:
 
           # Copy and read from a remote bucket containing the buildspec.yml file
           - !If 
-            - HasCustomBuildSpecLocation
+            - HasS3BuildSpecLocation
             - Sid: CopyBuildSpecFromS3ForBuild
               Action:
               - s3:Get*
@@ -558,7 +562,7 @@ Resources:
           Value: "production" # We do not need dev dependencies deployed to Lambda as they are for local development. IF you needed to run tests during build, then temporarily set in buildspec but be sure final deploy is based on production dependencies. (Build twice)  
       Source:
         Type: CODEPIPELINE
-        BuildSpec: !If [HasCustomBuildSpecLocation, !Ref BuildSpec, "buildspec.yml"]
+        BuildSpec: !If [HasS3BuildSpecLocation, !Ref BuildSpec, "buildspec.yml"]
 
   # ---------------------------------------------------------------------------
   # -- Log Group for CodeBuild Project --
