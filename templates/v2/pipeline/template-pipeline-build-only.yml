@@ -763,6 +763,10 @@ Resources:
   # -- Pipeline Notifications --
   # Using the AlarmNotificationEmail parameter, send pipeline execution updates
 
+  # ---------------------------------------------------------------------------
+  # -- Pipeline Notifications --
+  # Using the AlarmNotificationEmail parameter, send pipeline execution updates
+
   # Create SNS Topic for Pipeline notifications
   PipelineNotificationTopic:
     Type: AWS::SNS::Topic
@@ -772,37 +776,115 @@ Resources:
         - Protocol: email
           Endpoint: !Ref AlarmNotificationEmail
 
-  # Create notification rule for pipeline events
-  PipelineNotificationRule:
-    Type: AWS::CodeStarNotifications::NotificationRule
+  # EventBridge Rule for Pipeline Started events
+  PipelineStartedRule:
+    Type: AWS::Events::Rule
     Properties:
-      Name: !Sub ${AWS::StackName}-pipeline-notifications
-      DetailType: FULL
-      EventTypeIds: 
-        - codepipeline-pipeline-pipeline-execution-started
-        - codepipeline-pipeline-pipeline-execution-succeeded
-        - codepipeline-pipeline-pipeline-execution-failed
-      Resource: !Sub "arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${Prefix}-${ProjectId}-${StageId}-Pipeline"
+      Name: !Sub "${Prefix}-${ProjectId}-${StageId}-pipeline-started"
+      Description: "Rule for CodePipeline execution started events"
+      EventPattern:
+        source:
+          - "aws.codepipeline"
+        detail-type:
+          - "CodePipeline Pipeline Execution State Change"
+        detail:
+          state:
+            - "STARTED"
+          pipeline:
+            - !Sub "${Prefix}-${ProjectId}-${StageId}-Pipeline"
+      State: ENABLED
       Targets:
-        - TargetType: SNS
-          TargetAddress: !Ref PipelineNotificationTopic
+        - Arn: !Ref PipelineNotificationTopic
+          Id: "PipelineStartedTarget"
+          InputTransformer:
+            InputPathsMap:
+              "pipeline": "$.detail.pipeline"
+              "state": "$.detail.state"
+              "executionId": "$.detail.execution-id"
+              "time": "$.time"
+            InputTemplate: !Sub |
+              {
+                "Subject": "Pipeline <pipeline> Started",
+                "Message": "Pipeline <pipeline> has STARTED.\nExecution ID: <executionId>\nTime: <time>\nView in console: https://${AWS::Region}.console.aws.amazon.com/codesuite/codepipeline/pipelines/${Prefix}-${ProjectId}-${StageId}-Pipeline/view?region=${AWS::Region}"
+              }
 
-  # Add required SNS topic policy to allow CodeStar Notifications to publish
+  # EventBridge Rule for Pipeline Succeeded events
+  PipelineSucceededRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${Prefix}-${ProjectId}-${StageId}-pipeline-succeeded"
+      Description: "Rule for CodePipeline execution succeeded events"
+      EventPattern:
+        source:
+          - "aws.codepipeline"
+        detail-type:
+          - "CodePipeline Pipeline Execution State Change"
+        detail:
+          state:
+            - "SUCCEEDED"
+          pipeline:
+            - !Sub "${Prefix}-${ProjectId}-${StageId}-Pipeline"
+      State: ENABLED
+      Targets:
+        - Arn: !Ref PipelineNotificationTopic
+          Id: "PipelineSucceededTarget"
+          InputTransformer:
+            InputPathsMap:
+              "pipeline": "$.detail.pipeline"
+              "state": "$.detail.state"
+              "executionId": "$.detail.execution-id"
+              "time": "$.time"
+            InputTemplate: !Sub |
+              {
+                "Subject": "Pipeline <pipeline> Succeeded",
+                "Message": "Pipeline <pipeline> has SUCCEEDED.\nExecution ID: <executionId>\nTime: <time>\nView in console: https://${AWS::Region}.console.aws.amazon.com/codesuite/codepipeline/pipelines/${Prefix}-${ProjectId}-${StageId}-Pipeline/view?region=${AWS::Region}"
+              }
+
+  # EventBridge Rule for Pipeline Failed events
+  PipelineFailedRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${Prefix}-${ProjectId}-${StageId}-pipeline-failed"
+      Description: "Rule for CodePipeline execution failed events"
+      EventPattern:
+        source:
+          - "aws.codepipeline"
+        detail-type:
+          - "CodePipeline Pipeline Execution State Change"
+        detail:
+          state:
+            - "FAILED"
+          pipeline:
+            - !Sub "${Prefix}-${ProjectId}-${StageId}-Pipeline"
+      State: ENABLED
+      Targets:
+        - Arn: !Ref PipelineNotificationTopic
+          Id: "PipelineFailedTarget"
+          InputTransformer:
+            InputPathsMap:
+              "pipeline": "$.detail.pipeline"
+              "state": "$.detail.state"
+              "executionId": "$.detail.execution-id"
+              "time": "$.time"
+            InputTemplate: !Sub |
+              {
+                "Subject": "ALERT: Pipeline <pipeline> Failed",
+                "Message": "Pipeline <pipeline> has FAILED.\nExecution ID: <executionId>\nTime: <time>\nPlease check the pipeline for errors: https://${AWS::Region}.console.aws.amazon.com/codesuite/codepipeline/pipelines/${Prefix}-${ProjectId}-${StageId}-Pipeline/view?region=${AWS::Region}"
+              }
+
+  # Add required SNS topic policy to allow EventBridge to publish
   PipelineNotificationTopicPolicy:
     Type: AWS::SNS::TopicPolicy
     Properties:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Sid: AllowCodeStarNotificationsToPublishEvents
+          - Sid: AllowEventBridgeToPublishEvents
             Effect: Allow
             Principal:
-              Service: codestar-notifications.amazonaws.com
+              Service: events.amazonaws.com
             Action: sns:Publish
             Resource: !Ref PipelineNotificationTopic
-            Condition:
-              StringEquals:
-                aws:SourceAccount: !Ref 'AWS::AccountId'
       Topics:
         - !Ref PipelineNotificationTopic
 
