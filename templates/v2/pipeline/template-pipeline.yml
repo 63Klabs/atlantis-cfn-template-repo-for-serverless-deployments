@@ -766,6 +766,7 @@ Resources:
             - cloudwatch:DeleteAlarm*
             - cloudwatch:TagResource
             - cloudwatch:UntagResource
+            - cloudwatch:DescribeAlarms
             Effect: Allow
             Resource:
               - !Sub 'arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${Prefix}-${ProjectId}-${StageId}-*'
