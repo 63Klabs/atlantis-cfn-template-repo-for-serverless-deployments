@@ -585,19 +585,21 @@ Resources:
 
           - Sid: "CodeDeployCRUDThisDeploymentOnly"
             Action:
-            - codedeploy:*
+            - codedeploy:CreateDeployment
+            - codedeploy:GetDeployment
+            - codedeploy:RegisterApplicationRevision
+            - codedeploy:BatchGetDeploymentTargets
+            - codedeploy:GetDeploymentTarget
+            - codedeploy:UpdateDeploymentGroup
             Effect: Allow
             Resource:
               - !Sub 'arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:application:${Prefix}-${ProjectId}-${StageId}-application-*'
               - !Sub 'arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentgroup:${Prefix}-${ProjectId}-${StageId}-*'
-              # - !Sub 'arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentconfig:*'
-            # Condition:
-            #   StringEquals:
-            #     "aws:ResourceTag/atlantis:ApplicationDeploymentId": !Sub "${Prefix}-${ProjectId}-${StageId}"
 
           - Sid: "CodeDeployGetAndListReadOnlyAll"
             Action:
-            - codedeploy:*
+            - codedeploy:Get*
+            - codedeploy:List*
             Effect: Allow
             Resource: !Sub "arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentconfig:*"
 
@@ -682,7 +684,18 @@ Resources:
           # == Lambda Function == If application infrastructure manages a Lambda function
           - Sid: "LambdaCRUDThisDeploymentOnly"
             Action:
-            - lambda:*
+            - lambda:GetAlias
+            - lambda:CreateAlias
+            - lambda:DeleteAlias
+            - lambda:UpdateAlias
+            - lambda:ListAliases
+            - lambda:PublishVersion
+            - lambda:GetFunctionConfiguration
+            - lambda:UpdateFunctionConfiguration
+            - lambda:ListVersionsByFunction
+            - lambda:InvokeFunction
+            - lambda:GetFunction
+            - lambda:UpdateFunctionCode
             Effect: Allow
             Resource:
             - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Prefix}-${ProjectId}-${StageId}-*'
