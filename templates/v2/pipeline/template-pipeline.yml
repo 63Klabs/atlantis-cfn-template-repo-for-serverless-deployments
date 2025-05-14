@@ -595,6 +595,13 @@ Resources:
               StringEquals:
                 "aws:ResourceTag/atlantis:ApplicationDeploymentId": !Sub "${Prefix}-${ProjectId}-${StageId}"
 
+          - Sid: "CodeDeployGetAndListReadOnlyAll"
+            Action:
+            - codedeploy:Get*
+            - codedeploy:List*
+            Effect: Allow
+            Resource: !Sub "arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentconfig:*"
+
           # ===================================================================
           # CRUD permissions for additional resources
           # Comment/Uncomment the following statements to disallow/allow your application infrastructure stack to create the following resource types
