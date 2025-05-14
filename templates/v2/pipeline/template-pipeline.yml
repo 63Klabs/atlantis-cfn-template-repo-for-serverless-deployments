@@ -590,15 +590,14 @@ Resources:
             Resource:
               - !Sub 'arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:application:${Prefix}-${ProjectId}-${StageId}-application-*'
               - !Sub 'arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentgroup:${Prefix}-${ProjectId}-${StageId}-*'
-              - !Sub 'arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentconfig:*'
-            Condition:
-              StringEquals:
-                "aws:ResourceTag/atlantis:ApplicationDeploymentId": !Sub "${Prefix}-${ProjectId}-${StageId}"
+              # - !Sub 'arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentconfig:*'
+            # Condition:
+            #   StringEquals:
+            #     "aws:ResourceTag/atlantis:ApplicationDeploymentId": !Sub "${Prefix}-${ProjectId}-${StageId}"
 
           - Sid: "CodeDeployGetAndListReadOnlyAll"
             Action:
-            - codedeploy:Get*
-            - codedeploy:List*
+            - codedeploy:*
             Effect: Allow
             Resource: !Sub "arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentconfig:*"
 
