@@ -53,7 +53,7 @@ Parameters:
     Type: String
     Description: "Prefix pre-pended to all resources. This can be thought of as a Name Space used to identify ownership/access for teams, departments, etc. For example, resources named ws-* could belong to the web service team and could have IAM permissions to allow access to other ws-* resources. The Prefix must have a corresponding CloudFormation Service Role. Short, descriptive 2-6 character values work best. Due to resource naming length restrictions, length of Prefix + Project ID should not exceed 28 characters. Resources are named <Prefix>-<ProjectId>-<StageId>-<ResourceId>"
     Default: "acme" 
-    AllowedPattern: "^[a-z][a-z0-9-]{0,6}[a-z0-9]$|^$"
+    AllowedPattern: "^[a-z][a-z0-9-]{0,6}[a-z0-9]$|^$" # This is different than usual. We want to allow empty strings for the prefix to open account-wide access.
     MaxLength: 8
     ConstraintDescription: "2 to 8 characters. Lower case alphanumeric and dashes. Must start with a letter and end with a letter or number. Length of Prefix + Project ID should not exceed 28 characters."
 
