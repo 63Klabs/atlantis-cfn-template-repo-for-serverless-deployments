@@ -191,7 +191,7 @@ Parameters:
   GitHubConnectionArn:
     Type: String
     Description: "The ARN of the GitHub connection to use for the repository. If you don't have a GitHub connection, you must create one first. The ARN is in the GitHub connection details page."
-    AllowedPattern: "^arn:aws:(codestar-connections|codeconnections):\\S+:\\d{12}:connection\\/\\S+$" # codestar-connections was renamed to codeconnections in 2023
+    AllowedPattern: "^arn:aws:codeconnections:\\S+:\\d{12}:connection\\/\\S+$"
     ConstraintDescription: "A valid ARN for a GitHub connection."
 
 # =============================================================================
