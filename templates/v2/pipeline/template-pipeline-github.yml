@@ -1,10 +1,10 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "CodePipeline for Automated Deployments from repository - Deployed using SAM"
+Description: "CodePipeline for Automated Deployments from GitHub repository - Deployed using SAM"
 
 # Atlantis for AWS SAM Deployments
 # Pipeline Infrastructure Template
 # Author: Chad Kluck - 63klabs.net
-# Version: v2.0.15/2025-05-12
+# Version: v2.0.1/2025-05-16
 
 # Documentation, Issues/Feature Requests, Latest Updates, and Security Reports on GitHub:
 # https://github.com/63klabs/atlantis-cfn-template-repo-for-serverless-deployments/
@@ -56,6 +56,7 @@ Metadata:
         Parameters:
           - Repository
           - RepositoryBranch
+          - GitHubConnectionArn
 
 # =============================================================================
 # PARAMETERS
@@ -175,10 +176,10 @@ Parameters:
 
   Repository:
     Type: String
-    Description: "Source CodeCommit repository name. This is the name of the repository that will be used to trigger the pipeline. It must be a valid CodeCommit repository name."
+    Description: "For GitHub: owner/repository (e.g., 'username/my-repo')"
     MinLength: 2
-    AllowedPattern: "^[a-zA-Z0-9][a-zA-Z0-9_\\-]{0,62}[a-zA-Z0-9]$"
-    ConstraintDescription: "Must be a valid CodeCommit repository name. Must be at least 2 characters long."
+    AllowedPattern: "^[a-zA-Z0-9][a-zA-Z0-9_\\-]{0,62}[a-zA-Z0-9]\\/[a-zA-Z0-9][a-zA-Z0-9_\\-]{0,62}[a-zA-Z0-9]$"
+    ConstraintDescription: "Must be a valid owner/repository format for GitHub"
 
   RepositoryBranch:
     Type: String
@@ -186,6 +187,12 @@ Parameters:
     Default: "main"
     AllowedPattern: "^[a-zA-Z0-9][a-zA-Z0-9_\\-\\/]{0,14}[a-zA-Z0-9]$"
     ConstraintDescription: "Must be a valid CodeCommit branch name"
+
+  GitHubConnectionArn:
+    Type: String
+    Description: "The ARN of the GitHub connection to use for the repository. If you don't have a GitHub connection, you must create one first. The ARN is in the GitHub connection details page."
+    AllowedPattern: "^arn:aws:(codestar-connections|codeconnections):\\S+:\\d{12}:connection\\/\\S+$" # codestar-connections was renamed to codeconnections in 2023
+    ConstraintDescription: "A valid ARN for a GitHub connection."
 
 # =============================================================================
 # MAPPINGS
@@ -359,6 +366,12 @@ Resources:
             Effect: Allow
             Resource:
             - !GetAtt 'CloudFormationSvcRole.Arn'
+
+          - Sid: CodeConnectionsAccess
+            Effect: Allow
+            Action:
+            - codeconnections:UseConnection
+            Resource: !Ref GitHubConnectionArn
 
   # -- CodeBuild Service Role --
 
@@ -819,39 +832,6 @@ Resources:
   # The pipeline runs your build, tests, and deploys your application infrastructure via CloudFormation
   # Resources include S3 buckets to store artifacts, CodeBuild projects to build your application, and Code Deploy and CloudFormation to deploy.
 
-  # -- Source Event --
-  # --
-  # Event Rule to detect commits to a specific branch in CodeCommit and trigger the pipeline.
-  # https://docs.aws.amazon.com/codepipeline/latest/userguide/triggering.html
-  # --
-
-  SourceEvent:
-    Type: AWS::Events::Rule
-    Condition: IsNotDevelopment
-    Properties:
-      Name: !Sub "${Prefix}-${ProjectId}-${StageId}-SourceEvent"
-      Description: Rule for Amazon CloudWatch Events to detect changes to the source repository and trigger pipeline execution
-      EventPattern:
-        detail:
-          event:
-          - referenceCreated
-          - referenceUpdated
-          referenceName: 
-          - !Ref RepositoryBranch
-          referenceType:
-          - branch
-        detail-type:
-        - CodeCommit Repository State Change
-        resources:
-        - !Sub 'arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:${Repository}'
-        source:
-        - aws.codecommit
-      State: ENABLED
-      Targets:
-      - Arn: !Sub 'arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${Prefix}-${ProjectId}-${StageId}-Pipeline'
-        Id: ProjectPipelineTarget
-        RoleArn: !GetAtt 'SourceEventServiceRole.Arn'
-
   # -- CodeBuild Project --
 
   CodeBuildProject:
@@ -978,13 +958,12 @@ Resources:
           ActionTypeId:
             Category: Source
             Owner: AWS
-            Provider: CodeCommit
+            Provider: CodeStarSourceConnection
             Version: 1
           Configuration:
+            ConnectionArn: !Ref GitHubConnectionArn
+            FullRepositoryId: !Ref Repository
             BranchName: !Ref RepositoryBranch
-            PollForSourceChanges: false
-            RepositoryName: !Ref Repository
-          InputArtifacts: []
           OutputArtifacts:
           - Name: !Sub "${ProjectId}-${StageId}-SourceArtifact"
           RunOrder: 1
@@ -1195,6 +1174,6 @@ Outputs:
     Description: "CodePipeline"
     Condition: IsNotDevelopment
     Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/codesuite/codepipeline/pipelines/${Prefix}-${ProjectId}-${StageId}-Pipeline/view?region=${AWS::Region}"
-  CodeCommitRepo:
-    Description: "CodeCommitRepo"
-    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/codesuite/codecommit/repositories/${Repository}/browse?region=${AWS::Region}"
+  Repository:
+    Description: "Repository"
+    Value: !Sub "https://github.com/${Repository}"

@@ -34,12 +34,13 @@ Metadata:
           - StageId
           - S3BucketNameOrgPrefix
           - RolePath
+          - PermissionsBoundaryArn
       -
         Label:
           default: "Deployment Environment Information"
         Parameters:
           - DeployEnvironment
-          - DeployBucket
+          - S3ArtifactsBucket
           - S3StaticHostBucket
           - BuildSpec
       -
@@ -48,7 +49,6 @@ Metadata:
         Parameters:
           - ParameterStoreHierarchy
           - AlarmNotificationEmail
-          - PermissionsBoundaryArn
       -
         Label:
           default: "Code Repository"
@@ -115,6 +115,13 @@ Parameters:
     AllowedPattern: "^\\/([a-zA-Z0-9-_]+[\\/])+$|^\\/$"
     ConstraintDescription: "May only contain alphanumeric characters, forward slashes, underscores, and dashes. Must begin and end with a slash."
 
+  PermissionsBoundaryArn:
+    Type: String
+    Description: "Permissions Boundary is a policy attached to a role to further restrict the permissions of the role. Your organization may or may not require boundaries. If left empty, no permissions boundary will be used."
+    Default: ""
+    AllowedPattern: "^$|^arn:aws:iam::\\d{12}:policy\\/[\\w+=,.@\\-\\/]*[\\w+=,.@\\-]+$"
+    ConstraintDescription: "Must be empty or a valid IAM Policy ARN in the format: arn:aws:iam::{account_id}:policy/{policy_name}"
+
   # ---------------------------------------------------------------------------
   # Deployment Environment Identification
 
@@ -125,11 +132,10 @@ Parameters:
     AllowedValues: ["DEV", "TEST", "PROD"]
     ConstraintDescription: "Must specify DEV, TEST, or PROD."
 
-  DeployBucket:
+  S3ArtifactsBucket:
     Type: String
-    Description: "An already existing S3 bucket name to save build artifacts to. If this is left blank one will be created specific to the pipeline. Must be in the same AWS account and region as the stack."
-    Default: ""
-    AllowedPattern: "^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$|^$"
+    Description: "An already existing S3 bucket name to save build artifacts to. Must be in the same AWS account and region as the stack. When you first use SAM deploy it typically creates one for you in the format of cf-templates-something-us-east-1. You can use a different bucket as well."
+    AllowedPattern: "^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$"
     ConstraintDescription: "May only contain alphanumeric characters, dashes, and must begin and end with a letter or number."
 
   S3StaticHostBucket:
@@ -162,20 +168,13 @@ Parameters:
     AllowedPattern: "^[\\w\\-\\.]+@([\\w\\-]+\\.)+[\\w\\-]{2,4}$"
     ConstraintDescription: "A valid email address"
 
-  PermissionsBoundaryArn:
-    Type: String
-    Description: "Permissions Boundary is a policy attached to a role to further restrict the permissions of the role. Your organization may or may not require boundaries. If left empty, no permissions boundary will be used."
-    Default: ""
-    AllowedPattern: "^$|^arn:aws:iam::\\d{12}:policy\\/[\\w+=,.@\\-\\/]*[\\w+=,.@\\-]+$"
-    ConstraintDescription: "Must be empty or a valid IAM Policy ARN in the format: arn:aws:iam::{account_id}:policy/{policy_name}"
-
   # ---------------------------------------------------------------------------
   # Code Repository
   # Used only by this template-pipeline and not passed on to application infrastructure stack except as tags
 
   Repository:
     Type: String
-    Description: "What repository will be used?"
+    Description: "Source CodeCommit repository name. This is the name of the repository that will be used to trigger the pipeline. It must be a valid CodeCommit repository name."
     MinLength: 2
     AllowedPattern: "^[a-zA-Z0-9][a-zA-Z0-9_\\-]{0,62}[a-zA-Z0-9]$"
     ConstraintDescription: "Must be a valid CodeCommit repository name. Must be at least 2 characters long."
@@ -198,7 +197,6 @@ Conditions:
   # IsDevelopment: !Equals [!Ref DeployEnvironment, "DEV"] # currently unused - uncomment if you have a use for it
   UseS3BucketNameOrgPrefix: !Not [!Equals [!Ref S3BucketNameOrgPrefix, ""]]
   HasPermissionsBoundaryArn: !Not [!Equals [!Ref PermissionsBoundaryArn, ""]]
-  UseOwnS3DeployBucket: !Equals [!Ref DeployBucket, ""]
   HasS3StaticHostBucket: !Not [!Equals [!Ref S3StaticHostBucket, ""]]
   HasS3BuildSpecLocation: !And 
     - !Not [!Equals [!Ref BuildSpec, ""]]
@@ -310,8 +308,8 @@ Resources:
             - s3:PutObject
             Effect: Allow
             Resource:
-            - !If [UseOwnS3DeployBucket, !GetAtt S3DeployBucket.Arn, !Sub "arn:aws:s3:::${DeployBucket}"]
-            - !If [UseOwnS3DeployBucket, !Join [ '/', [ !GetAtt S3DeployBucket.Arn, '*' ] ], !Sub "arn:aws:s3:::${DeployBucket}/*"]
+            - !Sub "arn:aws:s3:::${S3ArtifactsBucket}"
+            - !Sub "arn:aws:s3:::${S3ArtifactsBucket}/*"
 
   # -- CodeBuild Service Role --
 
@@ -349,9 +347,8 @@ Resources:
             - s3:List*
             - s3:PutObject
             Resource:
-            - !If [UseOwnS3DeployBucket, !GetAtt S3DeployBucket.Arn, !Sub "arn:aws:s3:::${DeployBucket}"]
-            - !If [UseOwnS3DeployBucket, !Join [ '/', [ !GetAtt S3DeployBucket.Arn, '*' ] ], !Sub "arn:aws:s3:::${DeployBucket}/*"]
-
+            - !Sub "arn:aws:s3:::${S3ArtifactsBucket}"
+            - !Sub "arn:aws:s3:::${S3ArtifactsBucket}/*"
           # - Sid: "AllowCodeBuildToManageItsKeys" # TODO: Scope Down
           #   Effect: Allow
           #   Action:
@@ -538,8 +535,8 @@ Resources:
           Value: !Ref 'AWS::Region'
         - Name: AWS_ACCOUNT
           Value: !Ref 'AWS::AccountId'
-        - Name: S3_DEPLOY_BUCKET # informs AWS CodeBuild where it can retrieve your code artifact.
-          Value: !If [UseOwnS3DeployBucket, !Ref S3DeployBucket, !Ref DeployBucket ]
+        - Name: S3_ARTIFACTS_BUCKET # informs AWS CodeBuild where it can retrieve your code artifact.
+          Value: !Ref S3ArtifactsBucket
         - Name: PREFIX
           Value: !Ref 'Prefix'
         - Name: PROJECT_ID
@@ -594,110 +591,6 @@ Resources:
       RetentionInDays: 90 # Set to your own retention policy - how long do you want to keep build logs?
 
   # ---------------------------------------------------------------------------
-  # -- S3 Artifact Bucket Policy --
-  # This policy is applied to the Amazon S3 bucket that AWS CodePipeline will use as your artifact store.
-
-  S3ArtifactBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Condition: UseOwnS3DeployBucket
-    Properties:
-      Bucket: !Ref 'S3DeployBucket'
-      PolicyDocument:
-        Version: "2012-10-17"
-        Id: SSEAndSSLPolicy
-        Statement:
-
-        # # This is a recommended policy statement
-        # # https://docs.aws.amazon.com/code-samples/latest/catalog/cloudformation-codepipeline-template-codepipeline-s3-events-yaml.yml.html
-        #  -
-        #    Sid: DenyUnEncryptedObjectUploads
-        #    Effect: Deny
-        #    Principal: '*'
-        #    Action: s3:PutObject
-        #    Resource: !Join [ '', [ !GetAtt CodePipelineArtifactStoreBucket.Arn, '/*' ] ]
-        #    Condition:
-        #      StringNotEquals: 
-        #        s3:x-amz-server-side-encryption: aws:kms
-
-        - Sid: "DenyNonSecureTransportAccess"
-          Effect: Deny
-          Principal: "*"
-          Action: "s3:*"
-          Resource:
-            - !GetAtt S3DeployBucket.Arn
-            - !Join [ '/', [ !GetAtt S3DeployBucket.Arn, '*' ] ]
-          Condition:
-            Bool:
-                "aws:SecureTransport": false
-
-        - Sid: WhitelistedGet
-          Action:
-          - s3:GetObject
-          - s3:GetObjectVersion
-          - s3:GetBucketVersioning
-          Condition:
-            Bool:
-              aws:SecureTransport: false
-          Effect: Allow
-          Principal:
-            AWS:
-              Fn::If:
-              - IsNotDevelopment
-              - - !GetAtt 'CodePipelineServiceRole.Arn' # AWS CodeBuild retrieves the source code from the artifact bucket.
-                - !GetAtt 'CodeBuildServiceRole.Arn' # AWS CloudFormation retrieves a template file from this bucket to create the runtime resources.
-              - - !Ref 'AWS::NoValue'
-          Resource:
-            - !GetAtt S3DeployBucket.Arn
-            - !Join [ '/', [ !GetAtt S3DeployBucket.Arn, '*' ] ]
-          
-        - Sid: WhitelistedPut
-          Action:
-          - s3:PutObject
-          Effect: Allow
-          Principal:
-            AWS:
-              Fn::If:
-              - IsNotDevelopment
-              - - !GetAtt 'CodePipelineServiceRole.Arn'
-                - !GetAtt 'CodeBuildServiceRole.Arn'
-              - - !Ref 'AWS::NoValue'
-          Resource:
-            - !GetAtt S3DeployBucket.Arn
-            - !Join [ '/', [ !GetAtt S3DeployBucket.Arn, '*' ] ]
-
-  # ---------------------------------------------------------------------------
-  # -- S3 Artifact Bucket --
-
-  S3DeployBucket:
-    Type: AWS::S3::Bucket
-    Condition: UseOwnS3DeployBucket
-    DeletionPolicy: Delete # Set to Delete because if we delete the pipeline, we don't need the bucket
-    Properties:
-      BucketName: !Join
-        - "-"
-        - - !If [UseS3BucketNameOrgPrefix, !Sub "${S3BucketNameOrgPrefix}-${Prefix}", !Sub "${Prefix}-${AWS::Region}-${AWS::AccountId}" ]
-          - !Sub "${ProjectId}-${StageId}-pipeline"
-      VersioningConfiguration:
-        Status: Enabled
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
-      LifecycleConfiguration:
-        Rules:
-          - Id: "ExpireObjects"
-            AbortIncompleteMultipartUpload:
-              DaysAfterInitiation: 1
-            ExpirationInDays: 730 # 2 years - Unfortunately, you can't keep x number of deploys. However, you need to make sure you hang onto a few previous ones in case you need to roll back. If 2 yrs isn't good enough, you could create a script that deletes all but the last x recent deploys from the bucket. They don't actually take up a lot of space but why keep things around?
-            NoncurrentVersionExpirationInDays: 30
-            Status: "Enabled" # Enable so that you purge old build artifacts - they serve no use, not even for debug and it saves space and $$$
-
-  # ---------------------------------------------------------------------------
   # -- ProjectPipeline --
   # Using the resources defined above, the pipeline and it's parts is what 
   # moves things along
@@ -719,7 +612,7 @@ Resources:
     Properties:
       Name: !Sub '${Prefix}-${ProjectId}-${StageId}-Pipeline'
       ArtifactStore:
-        Location: !If [UseOwnS3DeployBucket, !Ref S3DeployBucket, !Ref DeployBucket ]
+        Location: !Ref S3ArtifactsBucket
         Type: S3
       RoleArn: !GetAtt 'CodePipelineServiceRole.Arn'
       Stages:
@@ -905,8 +798,5 @@ Outputs:
     Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/codesuite/codepipeline/pipelines/${Prefix}-${ProjectId}-${StageId}-Pipeline/view?region=${AWS::Region}"
   CodeCommitRepo:
     Description: "CodeCommitRepo"
-    Value: !Join
-      - ""
-      - - !Sub "https://${AWS::Region}.console.aws.amazon.com/codesuite/codecommit/repositories/"
-        - !Ref Repository
-        - !Sub "/browse?region=${AWS::Region}"
+    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/codesuite/codecommit/repositories/${Repository}/browse?region=${AWS::Region}"
+    
