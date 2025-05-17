@@ -589,6 +589,16 @@ Resources:
             - codedeploy:BatchGetDeploymentTargets
             - codedeploy:GetDeploymentTarget
             - codedeploy:UpdateDeploymentGroup
+            - codedeploy:CreateApplication
+            - codedeploy:DeleteApplication
+            - codedeploy:CreateDeploymentGroup
+            - codedeploy:DeleteDeploymentGroup
+            - codedeploy:GetDeploymentConfig
+            - codedeploy:CreateDeploymentConfig
+            - codedeploy:DeleteDeploymentConfig
+            - codedeploy:StopDeployment
+            - codedeploy:TagResource
+            - codedeploy:UntagResource
             Effect: Allow
             Resource:
               - !Sub 'arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:application:${Prefix}-${ProjectId}-${StageId}-application-*'
