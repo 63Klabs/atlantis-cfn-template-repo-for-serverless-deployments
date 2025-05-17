@@ -580,7 +580,6 @@ Resources:
             Resource:
             - "arn:aws:cloudformation:*:aws:transform/Serverless-2016-10-31"
 
-
           - Sid: "CodeDeployCRUDThisDeploymentOnly"
             Action:
             - codedeploy:CreateDeployment
@@ -611,52 +610,6 @@ Resources:
             Effect: Allow
             Resource: !Sub "arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentconfig:*"
 
-          # ===================================================================
-          # CRUD permissions for additional resources
-          # Comment/Uncomment the following statements to disallow/allow your application infrastructure stack to create the following resource types
-          # ===================================================================
-
-          # == API GateWay == If application infrastructure is using API GateWay to trigger Lambda Function
-          - Sid: "APIGateWayCRUD"
-            Action:
-            - apigateway:*
-            Effect: Allow
-            Resource: "*" # needs to be scoped down - use of tags?
-            # we can't use arn because the name is a random id, so we need to use a condition against the tags, but to write in YAML?
-            # Condition:
-            #   StringEquals: 
-            #     aws:ResourceTag/ProjectStackProjectStageID: !Sub "${AWS::Region}/${AWS::AccountId}/${Prefix}-${ProjectId}-${StageId}"
-
-
-          # # == Event Bridge == If application infrastructure is using Event Bridge to trigger Lambda function
-          - Sid: "EventRuleManageThisDeploymentOnly"
-            Action:
-            - events:PutRule
-            - events:DeleteRule
-            - events:DescribeRule
-            - events:PutTargets
-            - events:RemoveTargets
-            Effect: Allow
-            Resource:
-            - !Sub 'arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/${Prefix}-${ProjectId}-${StageId}-*'
-
-
-          # # == State Machines / Step Functions == If application infrastructure is managing a state machine with step functions
-          - Sid: "CreateUpdateDeleteStateMachine"
-            Action:  
-            - states:CreateStateMachine
-            - states:UpdateStateMachine
-            - states:DeleteStateMachine
-            - states:ListStateMachines
-            - states:DescribeStateMachine
-            - states:TagResource
-            - states:UntagResource
-            - states:ListTagsForResource
-            Effect: Allow
-            Resource:
-              - !Sub 'arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${Prefix}-${ProjectId}-${StageId}-*'
-
-          # == S3 Deploy Bucket
           - Sid: ManageArtifactsInS3
             Action:
             - s3:Get*
@@ -667,7 +620,38 @@ Resources:
             - !Sub "arn:aws:s3:::${S3ArtifactsBucket}"
             - !Sub "arn:aws:s3:::${S3ArtifactsBucket}/*"
 
-          # == S3 Buckets == If application infrastructure manages S3 buckets
+          # ===================================================================
+          # CRUD permissions for application resources
+          # ===================================================================
+
+          # == API Gateway ==
+          - Sid: "APIGateWayCRUD"
+            Action:
+            - apigateway:*
+            Effect: Allow
+            Resource: "*" # needs to be scoped down - use of tags?
+            # we can't use arn because the name is a random id, so we need to use a condition against the tags, but to write in YAML?
+            # Condition:
+            #   StringEquals: 
+            #     aws:ResourceTag/ProjectStackProjectStageID: !Sub "${AWS::Region}/${AWS::AccountId}/${Prefix}-${ProjectId}-${StageId}"
+
+          # == Event Bridge ==
+          - Sid: "EventsCRUDThisDeploymentOnly"
+            Action:
+            - events:*
+            Effect: Allow
+            Resource:
+            - !Sub 'arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/${Prefix}-${ProjectId}-${StageId}-*'
+
+          # == State Machines / Step Functions ==
+          - Sid: "StateMachineCRUDThisDeploymentOnly"
+            Action:  
+            - states:*
+            Effect: Allow
+            Resource:
+              - !Sub 'arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:${Prefix}-${ProjectId}-${StageId}-*'
+
+          # == S3 Buckets ==
           - Sid: "S3CRUDThisDeploymentOnly"
             Action:
             - s3:*
@@ -689,26 +673,109 @@ Resources:
                 - !If [UseS3BucketNameOrgPrefix, !Sub "${S3BucketNameOrgPrefix}-${Prefix}", !Sub "${Prefix}-${AWS::Region}-${AWS::AccountId}" ]
                 - !Sub "-${ProjectId}-${StageId}-*"
 
-          # == Lambda Function == If application infrastructure manages a Lambda function
+          # == Lambda Function ==
           - Sid: "LambdaCRUDThisDeploymentOnly"
             Action:
-            - lambda:GetAlias
-            - lambda:CreateAlias
-            - lambda:DeleteAlias
-            - lambda:UpdateAlias
-            - lambda:ListAliases
-            - lambda:PublishVersion
-            - lambda:GetFunctionConfiguration
-            - lambda:UpdateFunctionConfiguration
-            - lambda:ListVersionsByFunction
-            - lambda:InvokeFunction
-            - lambda:GetFunction
-            - lambda:UpdateFunctionCode
+            - lambda:*
             Effect: Allow
             Resource:
             - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Prefix}-${ProjectId}-${StageId}-*'
+            - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:${Prefix}-${ProjectId}-${StageId}*'
 
-          # == Lambda Insights == If application infrastructure utilizes Lambda Insights for tracing and troubleshooting
+          # == DynamoDb ==
+          - Sid: "DynamoDbCRUDThisDeploymentOnly"
+            Action:
+            - dynamodb:*
+            Effect: Allow
+            Resource:
+              - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${Prefix}-${ProjectId}-${StageId}-*'
+
+          # ===================================================================
+          # Limited CRUD permissions for application resources
+          # ===================================================================
+
+          # == CloudWatch Dashboard ==
+          - Sid: "CloudWatchDashboardLimitedCRUDThisDeploymentOnly"
+            Action:
+            - cloudwatch:GetDashboard
+            - cloudwatch:DeleteDashboards
+            - cloudwatch:PutDashboard
+            - cloudwatch:TagResource
+            - cloudwatch:UntagResource
+            Effect: Allow
+            Resource:
+            - !Sub 'arn:aws:cloudwatch::${AWS::AccountId}:dashboard/${Prefix}-${ProjectId}-${StageId}-*'
+
+          # == CloudWatch Alarms ==
+          - Sid: "CloudWatchAlarmsLimitedCRUDThisDeploymentOnly"
+            Action:
+            - cloudwatch:PutMetricAlarm
+            - cloudwatch:DeleteAlarm*
+            - cloudwatch:TagResource
+            - cloudwatch:UntagResource
+            - cloudwatch:DescribeAlarms
+            Effect: Allow
+            Resource:
+              - !Sub 'arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${Prefix}-${ProjectId}-${StageId}-*'
+
+          - Sid: "SNSForAlarmNotificationsLimitedCRUDThisDeploymentOnly"
+            Action:
+            - sns:ListSubscriptionsByTopic
+            - sns:CreateTopic
+            - sns:DeleteTopic
+            - sns:SetTopicAttributes
+            - sns:GetTopicAttributes
+            - sns:Subscribe
+            - sns:UntagResource
+            - sns:TagResource            
+            Effect: Allow
+            Resource:
+              - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${Prefix}-${ProjectId}-${StageId}-application-*'
+
+          # == CloudWatch Logs ==
+          - Sid: "LogGroupsLimitedCRUDThisDeploymentOnly"
+            Action:
+            - logs:DeleteLogGroup
+            - logs:DeleteRetentionPolicy
+            - logs:PutRetentionPolicy
+            - logs:CreateLogGroup
+            - logs:TagLogGroup # AWS is phasing out, replacing with TagResource
+            - logs:UntagLogGroup # AWS is phasing out, replacing with UntagResource
+            - logs:TagResource
+            - logs:UntagResource
+            - logs:ListTagsForResource
+            - logs:DescribeLogGroups
+            Effect: Allow
+            Resource:
+            - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${Prefix}-${ProjectId}-${StageId}-*'
+            - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/apigateway/${Prefix}-${ProjectId}-${StageId}-*'
+            - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:API-Gateway-Execution-Logs_*' # TODO: Scope down
+
+          # ===================================================================
+          # Read-only permissions (typically for resources created by other stacks)
+          # ===================================================================
+
+          - Sid: "LogGroupsListAll"
+            Action:
+            - logs:DescribeLogGroups
+            - logs:ListTagsLogGroup
+            - logs:ListTagsForResource
+            Effect: Allow
+            Resource: 
+            - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group::*' # cannot scope down to resource as this is a List, but actions are limited
+
+          # == SSM Parameter Store (Read-Only) ==
+          - Sid: "SSMParameterStoreReadThisDeploymentOnly"
+            Action:
+            - ssm:GetParameters
+            - ssm:GetParameter
+            - ssm:GetParametersByPath
+            - ssm:ListTagsForResource
+            Effect: Allow
+            Resource: 
+              !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ParameterStoreHierarchy}${DeployEnvironment}/${Prefix}-${ProjectId}-${StageId}/*"
+
+          # == Lambda Insights == for tracing and troubleshooting
           - Sid: "LambdaLayersGetLayerForLambdaInsightsFromAWS"
             Action:
             - lambda:GetLayerVersion
@@ -737,88 +804,6 @@ Resources:
                 - AccountId: !FindInMap [LambdaParamSecretsAccountId, !Ref "AWS::Region", AccountId]
             # https://docs.aws.amazon.com/systems-manager/latest/userguide/ps-integration-lambda-extensions.html#ps-integration-lambda-extensions-add
             # These accounts are owned by AWS so they can be trusted
-
-          # == DynamoDb == If application infrastructure manages a DynamoDb resource
-          - Sid: "DynamoDbCRUDThisDeploymentOnly"
-            Action:
-            - dynamodb:*
-            Effect: Allow
-            Resource:
-              - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${Prefix}-${ProjectId}-${StageId}-*'
-
-          # == SSM Parameter Store (Read-Only) == If application infrastructure accesses SSM parameter store
-          - Sid: "SSMParameterStoreReadThisDeploymentOnly"
-            Action:
-            - ssm:GetParameters
-            - ssm:GetParameter
-            - ssm:GetParametersByPath
-            - ssm:ListTagsForResource
-            Effect: Allow
-            Resource: 
-              !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter${ParameterStoreHierarchy}${DeployEnvironment}/${Prefix}-${ProjectId}-${StageId}/*"
-
-          - Sid: "CloudWatchDashboardLimitedCRUDThisDeploymentOnly"
-            Action:
-            - cloudwatch:GetDashboard
-            - cloudwatch:DeleteDashboards
-            - cloudwatch:PutDashboard
-            - cloudwatch:TagResource
-            - cloudwatch:UntagResource
-            Effect: Allow
-            Resource:
-            - !Sub 'arn:aws:cloudwatch::${AWS::AccountId}:dashboard/${Prefix}-${ProjectId}-${StageId}-*'
-
-          - Sid: "CloudWatchAlarmsLimitedCRUDThisDeploymentOnly"
-            Action:
-            - cloudwatch:PutMetricAlarm
-            - cloudwatch:DeleteAlarm*
-            - cloudwatch:TagResource
-            - cloudwatch:UntagResource
-            - cloudwatch:DescribeAlarms
-            Effect: Allow
-            Resource:
-              - !Sub 'arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${Prefix}-${ProjectId}-${StageId}-*'
-
-          - Sid: "SNSForAlarmNotificationsLimitedCRUDThisDeploymentOnly"
-            Action:
-            - sns:ListSubscriptionsByTopic
-            - sns:CreateTopic
-            - sns:DeleteTopic
-            - sns:SetTopicAttributes
-            - sns:GetTopicAttributes
-            - sns:Subscribe
-            - sns:UntagResource
-            - sns:TagResource            
-            Effect: Allow
-            Resource:
-              - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${Prefix}-${ProjectId}-${StageId}-application-*'
-
-          - Sid: "LogGroupsLimitedCRUDThisDeploymentOnly"
-            Action:
-            - logs:DeleteLogGroup
-            - logs:DeleteRetentionPolicy
-            - logs:PutRetentionPolicy
-            - logs:CreateLogGroup
-            - logs:TagLogGroup # AWS is phasing out, replacing with TagResource
-            - logs:UntagLogGroup # AWS is phasing out, replacing with UntagResource
-            - logs:TagResource
-            - logs:UntagResource
-            - logs:ListTagsForResource
-            - logs:DescribeLogGroups
-            Effect: Allow
-            Resource:
-            - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${Prefix}-${ProjectId}-${StageId}-*'
-            - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/apigateway/${Prefix}-${ProjectId}-${StageId}-*'
-            - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:API-Gateway-Execution-Logs_*' # TODO: Scope down
-            
-          - Sid: "LogGroupsListAll"
-            Action:
-            - logs:DescribeLogGroups
-            - logs:ListTagsLogGroup
-            - logs:ListTagsForResource
-            Effect: Allow
-            Resource: 
-            - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group::*' # cannot scope down to resource as this is a List, but actions are limited
 
 
   # ---------------------------------------------------------------------------
