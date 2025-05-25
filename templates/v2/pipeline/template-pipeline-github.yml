@@ -336,8 +336,14 @@ Resources:
             - codebuild:*
             Effect: Allow
             Resource: 
-            - !Sub "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:report-group/*"
             - !Sub "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${Prefix}-${ProjectId}-${StageId}-Build"
+
+          - Sid: CodeBuildReportGroup
+            Action:
+            - codebuild:*
+            Effect: Allow
+            Resource: 
+            - !Sub "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:report-group/*"
             Condition:
               StringEquals:
                 "aws:ResourceTag/atlantis:ApplicationDeploymentId": !Sub "${Prefix}-${ProjectId}-${StageId}"
