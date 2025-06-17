@@ -33,7 +33,7 @@ Metadata:
           default: "External Resources and Alarm Notifications"
         Parameters:
           - AlarmNotificationEmail
-          - PermissionsBoundaryARN
+          - PermissionsBoundaryArn
           - S3LogBucketName
 
 # =============================================================================
@@ -94,7 +94,7 @@ Parameters:
     AllowedPattern: "^[\\w\\-\\.]+@([\\w\\-]+\\.)+[\\w\\-]{2,4}$"
     ConstraintDescription: "A valid email address"
 
-  PermissionsBoundaryARN:
+  PermissionsBoundaryArn:
     Type: String
     Description: "Permissions Boundary is a policy attached to a role to further restrict the permissions of the role. Your organization may or may not require boundaries. If left empty, no permissions boundary will be used."
     Default: ""
@@ -116,7 +116,7 @@ Parameters:
 
 Conditions:
   UseS3BucketNameOrgPrefix: !Not [!Equals [!Ref S3BucketNameOrgPrefix, ""]]
-  HasPermissionsBoundaryARN: !Not [!Equals [!Ref PermissionsBoundaryARN, ""]]
+  HasPermissionsBoundaryArn: !Not [!Equals [!Ref PermissionsBoundaryArn, ""]]
   HasLoggingBucket: !Not [!Equals [!Ref S3LogBucketName, ""]]
 
 # =============================================================================
@@ -348,7 +348,7 @@ Resources:
     Properties:
       RoleName: !Sub "${Prefix}-ExecutionRole-${ProjectId}-CloudFrontInvalidator"
       Path: !Ref RolePath
-      PermissionsBoundary: !If [HasPermissionsBoundaryARN, !Ref PermissionsBoundaryARN, !Ref 'AWS::NoValue' ]
+      PermissionsBoundary: !If [HasPermissionsBoundaryArn, !Ref PermissionsBoundaryArn, !Ref 'AWS::NoValue' ]
 
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
