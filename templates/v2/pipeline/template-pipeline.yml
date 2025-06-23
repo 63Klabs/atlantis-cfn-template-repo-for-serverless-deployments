@@ -585,6 +585,7 @@ Resources:
             Effect: Allow
             Resource:
             - "arn:aws:cloudformation:*:aws:transform/Serverless-2016-10-31"
+            - "arn:aws:cloudformation:*:aws:transform/Include"
 
           - Sid: "CodeDeployCRUDThisDeploymentOnly"
             Action:
