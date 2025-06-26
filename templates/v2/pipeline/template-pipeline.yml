@@ -647,6 +647,18 @@ Resources:
               StringLike:
                 "aws:ResourceTag/aws:cloudformation:stack-name": !Sub "${Prefix}-${ProjectId}-${StageId}-*"
 
+          # Fallback for API Gateway tagging
+          - Sid: "APIGatewayFallbackForTags"
+            Action:
+            - apigateway:GET
+            - apigateway:POST
+            - apigateway:PUT
+            - apigateway:PATCH
+            - apigateway:DELETE
+            Effect: Allow
+            Resource:
+            - !Sub "arn:aws:apigateway:${AWS::Region}::/tags/*"
+
           # == Event Bridge ==
           - Sid: "EventsCRUDThisDeploymentOnly"
             Action:

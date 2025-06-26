@@ -543,7 +543,6 @@ Resources:
   # As you add functionality and resource types (such as DynamoDb, Event Bridge, Step Functions, etc) you will need to add additional permissions.
   # This portion along with the parameters in the pipeline deploy process and environment variables in the build process will differ the most between your applications.
   # --
-
   CloudFormationSvcRole:
     Type: AWS::IAM::Role
     Properties:
@@ -598,6 +597,7 @@ Resources:
             Effect: Allow
             Resource:
             - "arn:aws:cloudformation:*:aws:transform/Serverless-2016-10-31"
+            - "arn:aws:cloudformation:*:aws:transform/Include"
 
           - Sid: "CodeDeployCRUDThisDeploymentOnly"
             Action:
@@ -605,7 +605,9 @@ Resources:
             Effect: Allow
             Resource:
               - !Sub 'arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:application:${Prefix}-${ProjectId}-${StageId}-application-*'
+              - !Sub 'arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:application:${Prefix}-${ProjectId}-${StageId}-*'
               - !Sub 'arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentgroup:${Prefix}-${ProjectId}-${StageId}-*'
+              - !Sub 'arn:aws:codedeploy:${AWS::Region}:${AWS::AccountId}:deployment:*'
 
           - Sid: "CodeDeployGetAndListReadOnlyAll"
             Action:
@@ -633,11 +635,41 @@ Resources:
             Action:
             - apigateway:*
             Effect: Allow
-            Resource: "*" # needs to be scoped down - use of tags?
-            # we can't use arn because the name is a random id, so we need to use a condition against the tags, but to write in YAML?
-            # Condition:
-            #   StringEquals: 
-            #     aws:ResourceTag/ProjectStackProjectStageID: !Sub "${AWS::Region}/${AWS::AccountId}/${Prefix}-${ProjectId}-${StageId}"
+            Resource: "*" # We can't use the resource ARN because it is a random id so we will use a conditional against tags
+            Condition:
+              StringEquals:
+                "aws:ResourceTag/atlantis:ApplicationDeploymentId": !Sub "${Prefix}-${ProjectId}-${StageId}"
+
+          # Fallback for API Gateway resources that SAM may not tag properly
+          - Sid: "APIGatewayFallbackForUntaggedResources"
+            Action:
+            - apigateway:GET
+            - apigateway:POST
+            - apigateway:PUT
+            - apigateway:PATCH
+            - apigateway:DELETE
+            Effect: Allow
+            Resource:
+            - !Sub "arn:aws:apigateway:${AWS::Region}::/restapis/*/deployments/*"
+            - !Sub "arn:aws:apigateway:${AWS::Region}::/restapis/*/stages/*"
+            - !Sub "arn:aws:apigateway:${AWS::Region}::/restapis/*/models/*"
+            - !Sub "arn:aws:apigateway:${AWS::Region}::/restapis/*/requestvalidators/*"
+            - !Sub "arn:aws:apigateway:${AWS::Region}::/restapis/*/documentation/*"
+            Condition:
+              StringLike:
+                "aws:ResourceTag/aws:cloudformation:stack-name": !Sub "${Prefix}-${ProjectId}-${StageId}-*"
+
+          # Fallback for API Gateway tagging
+          - Sid: "APIGatewayFallbackForTags"
+            Action:
+            - apigateway:GET
+            - apigateway:POST
+            - apigateway:PUT
+            - apigateway:PATCH
+            - apigateway:DELETE
+            Effect: Allow
+            Resource:
+            - !Sub "arn:aws:apigateway:${AWS::Region}::/tags/*"
 
           # == Event Bridge ==
           - Sid: "EventsCRUDThisDeploymentOnly"
@@ -684,7 +716,9 @@ Resources:
             Effect: Allow
             Resource:
             - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Prefix}-${ProjectId}-${StageId}-*'
+            - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Prefix}-${ProjectId}-${StageId}-*:*'
             - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:${Prefix}-${ProjectId}-${StageId}*'
+            - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:event-source-mapping:*'
 
           # == DynamoDb ==
           - Sid: "DynamoDbCRUDThisDeploymentOnly"
@@ -808,6 +842,7 @@ Resources:
                 - AccountId: !FindInMap [LambdaParamSecretsAccountId, !Ref "AWS::Region", AccountId]
             # https://docs.aws.amazon.com/systems-manager/latest/userguide/ps-integration-lambda-extensions.html#ps-integration-lambda-extensions-add
             # These accounts are owned by AWS so they can be trusted
+
 
 
   # ---------------------------------------------------------------------------
