@@ -126,7 +126,7 @@ Resources:
       BucketName: !Join
         - "-"
         - - !If [UseS3BucketNameOrgPrefix, !Sub "${S3BucketNameOrgPrefix}-${Prefix}", !Sub "${Prefix}" ]
-          - !Sub "${ProjectId}-cachedata-${AWS::Region}-${AWS::AccountId}"
+          - !Sub "${ProjectId}-${AWS::Region}-${AWS::AccountId}"
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
