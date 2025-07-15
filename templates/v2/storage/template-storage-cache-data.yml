@@ -205,22 +205,22 @@ Outputs:
     Description: "DynamoDb Table Name"
     Value: !Ref CacheDataDynamoDbTable
     Export:
-      Name: !Sub '${Prefix}-${ProjectId}-CacheDataDynamoDbTable'
+      Name: !Sub '${Prefix}-CacheDataDynamoDbTable'
 
   S3BucketExport:
     Description: "S3 Bucket Name"
     Value: !Ref CacheDataS3Bucket
     Export:
-      Name: !Sub '${Prefix}-${ProjectId}-CacheDataS3Bucket'
+      Name: !Sub '${Prefix}-CacheDataS3Bucket'
 
   S3BucketArnExport:
     Description: "S3 Bucket ARN"
     Value: !GetAtt CacheDataS3Bucket.Arn
     Export:
-      Name: !Sub '${Prefix}-${ProjectId}-CacheDataS3BucketArn'
+      Name: !Sub '${Prefix}-CacheDataS3BucketArn'
 
   DynamoDbTableArnExport:
     Description: "DynamoDb Table ARN"
     Value: !GetAtt CacheDataDynamoDbTable.Arn
     Export:
-      Name: !Sub '${Prefix}-${ProjectId}-CacheDataDynamoDbTableArn'
+      Name: !Sub '${Prefix}-CacheDataDynamoDbTableArn'
