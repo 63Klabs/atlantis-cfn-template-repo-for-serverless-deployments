@@ -104,6 +104,8 @@ Resources:
 
   CacheDataDynamoDbTable:
     Type: AWS::DynamoDB::Table
+    UpdateReplacePolicy: Retain
+    DeletionPolicy: Delete # Since this is cache data that can be regenerated, Delete is suitable for the deletion policy.
     Properties:
       TableName: !Sub '${Prefix}-${ProjectId}-CacheData'
       AttributeDefinitions: 
