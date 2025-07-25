@@ -659,6 +659,15 @@ Resources:
             Resource:
             - !Sub "arn:aws:apigateway:${AWS::Region}::/tags/*"
 
+          - Sid: AllowCreateServiceLinkedRoleForAPIGateway
+            Effect: Allow
+            Action:
+            - iam:CreateServiceLinkedRole
+            Resource: "arn:aws:iam::*:role/aws-service-role/ops.apigateway.amazonaws.com/AWSServiceRoleForAPIGateway"
+            Condition:
+              StringEquals:
+                "iam:AWSServiceName": "ops.apigateway.amazonaws.com"
+
           # == Event Bridge ==
           - Sid: "EventsCRUDThisDeploymentOnly"
             Action:
