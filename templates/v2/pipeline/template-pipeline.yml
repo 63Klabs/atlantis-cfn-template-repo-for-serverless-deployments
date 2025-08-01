@@ -684,6 +684,7 @@ Resources:
             Resource:
             - !Sub 'arn:aws:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/${Prefix}-${ProjectId}-${StageId}-*'
             - !Sub 'arn:aws:scheduler:${AWS::Region}:${AWS::AccountId}:schedule-group/${Prefix}-${ProjectId}-${StageId}-*'
+            - !Sub 'arn:aws:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/default/${Prefix}-${ProjectId}-${StageId}-*'
 
           # == SQS ==
           - Sid: "SQSCRUDThisDeploymentOnly"
