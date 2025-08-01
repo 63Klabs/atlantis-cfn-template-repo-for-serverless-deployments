@@ -46,12 +46,12 @@ jobs:
 
       - name: Replace Bucket Name in Templates
         run: |
-          ./scripts/replace_bucket_name.py templates ${{ vars.AWS_RELEASE_BUCKET }}
+          python3 ./scripts/replace_bucket_name.py templates ${{ vars.AWS_RELEASE_BUCKET }}
 
       - name: Sync templates
         run: |
-          ./scripts/sync_templates.sh templates ${{ vars.AWS_RELEASE_BUCKET }} ${{ vars.AWS_RELEASE_BUCKET_TEMPLATES_PATH }}
+          python3 ./scripts/sync_templates.sh templates ${{ vars.AWS_RELEASE_BUCKET }} ${{ vars.AWS_RELEASE_BUCKET_TEMPLATES_PATH }}
 
       - name: Upload utility scripts
         run: |
-          ./scripts/upload_scripts.sh ${{ vars.AWS_RELEASE_BUCKET }}${{ vars.AWS_RELEASE_BUCKET_UTILS_PATH }} scripts
+          python3 ./scripts/upload_scripts.sh ${{ vars.AWS_RELEASE_BUCKET }}${{ vars.AWS_RELEASE_BUCKET_UTILS_PATH }} scripts
