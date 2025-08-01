@@ -675,6 +675,31 @@ Resources:
             Effect: Allow
             Resource:
             - !Sub 'arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/${Prefix}-${ProjectId}-${StageId}-*'
+            
+          # == EventBridge Scheduler ==
+          - Sid: "EventBridgeSchedulerCRUDThisDeploymentOnly"
+            Action:
+            - scheduler:*
+            Effect: Allow
+            Resource:
+            - !Sub 'arn:aws:scheduler:${AWS::Region}:${AWS::AccountId}:schedule/${Prefix}-${ProjectId}-${StageId}-*'
+            - !Sub 'arn:aws:scheduler:${AWS::Region}:${AWS::AccountId}:schedule-group/${Prefix}-${ProjectId}-${StageId}-*'
+
+          # == SQS ==
+          - Sid: "SQSCRUDThisDeploymentOnly"
+            Action:
+            - sqs:*
+            Effect: Allow
+            Resource:
+            - !Sub 'arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${Prefix}-${ProjectId}-${StageId}-*'
+
+          # == SNS ==
+          - Sid: "SNSCRUDThisDeploymentOnly"
+            Action:
+            - sns:*
+            Effect: Allow
+            Resource:
+            - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${Prefix}-${ProjectId}-${StageId}-*'
 
           # == State Machines / Step Functions ==
           - Sid: "StateMachineCRUDThisDeploymentOnly"
@@ -752,20 +777,6 @@ Resources:
             Effect: Allow
             Resource:
               - !Sub 'arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${Prefix}-${ProjectId}-${StageId}-*'
-
-          - Sid: "SNSForAlarmNotificationsLimitedCRUDThisDeploymentOnly"
-            Action:
-            - sns:ListSubscriptionsByTopic
-            - sns:CreateTopic
-            - sns:DeleteTopic
-            - sns:SetTopicAttributes
-            - sns:GetTopicAttributes
-            - sns:Subscribe
-            - sns:UntagResource
-            - sns:TagResource            
-            Effect: Allow
-            Resource:
-              - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:${Prefix}-${ProjectId}-${StageId}-application-*'
 
           # == CloudWatch Logs ==
           - Sid: "LogGroupsLimitedCRUDThisDeploymentOnly"
