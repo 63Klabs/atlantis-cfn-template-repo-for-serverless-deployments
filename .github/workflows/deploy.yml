@@ -50,8 +50,8 @@ jobs:
 
       - name: Sync templates
         run: |
-          python3 ./scripts/sync_templates.sh templates ${{ vars.AWS_RELEASE_BUCKET }} ${{ vars.AWS_RELEASE_BUCKET_TEMPLATES_PATH }}
+          ./scripts/sync_templates.sh templates ${{ vars.AWS_RELEASE_BUCKET }} ${{ vars.AWS_RELEASE_BUCKET_TEMPLATES_PATH }}
 
       - name: Upload utility scripts
         run: |
-          python3 ./scripts/upload_scripts.sh ${{ vars.AWS_RELEASE_BUCKET }}${{ vars.AWS_RELEASE_BUCKET_UTILS_PATH }} scripts
+          ./scripts/upload_scripts.sh ${{ vars.AWS_RELEASE_BUCKET }}${{ vars.AWS_RELEASE_BUCKET_UTILS_PATH }} scripts

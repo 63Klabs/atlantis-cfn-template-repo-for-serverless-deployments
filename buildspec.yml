@@ -40,13 +40,13 @@ phases:
 
       # Copy template files to host bucket
       - echo "Executing script to sync templates..."
-      - python3 ./scripts/sync_templates.sh $SOURCE_DIR $S3_STATIC_HOST_BUCKET $S3_HOST_BASE_PATH_TEMPLATES $DRYRUN
+      - ./scripts/sync_templates.sh $SOURCE_DIR $S3_STATIC_HOST_BUCKET $S3_HOST_BASE_PATH_TEMPLATES $DRYRUN
       # If you have additional directories you can sync them next as long as you have a unique local and unique remote directory (don't use same as previous otherwise it will perform a delete)
 #      - ./scripts/sync_templates.sh custom-templates $S3_STATIC_HOST_BUCKET $S3_HOST_BASE_PATH/custom-templates $DRYRUN
 
       # Send sharable scripts to host bucket
       - echo "Executing script to upload scripts..."
-      - python3 ./scripts/upload_scripts.sh $S3_STATIC_HOST_BUCKET $S3_HOST_BASE_PATH_UTILITIES scripts $DRYRUN
+      - ./scripts/upload_scripts.sh $S3_STATIC_HOST_BUCKET $S3_HOST_BASE_PATH_UTILITIES scripts $DRYRUN
 
 artifacts:
   files:
