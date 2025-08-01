@@ -44,12 +44,14 @@ jobs:
         run: |
           pip install --upgrade awscli boto3
 
+      - name: Replace Bucket Name in Templates
+        run: |
+          ./scripts/replace_bucket_name.py templates ${{ vars.AWS_RELEASE_BUCKET }}
+
       - name: Sync templates
         run: |
-          chmod +x ./scripts/sync_templates.sh
           ./scripts/sync_templates.sh templates ${{ vars.AWS_RELEASE_BUCKET }} ${{ vars.AWS_RELEASE_BUCKET_TEMPLATES_PATH }}
 
       - name: Upload utility scripts
         run: |
-          chmod +x ./scripts/upload_scripts.sh
           ./scripts/upload_scripts.sh ${{ vars.AWS_RELEASE_BUCKET }}${{ vars.AWS_RELEASE_BUCKET_UTILS_PATH }} scripts
