@@ -46,11 +46,12 @@ Metadata:
           - BuildSpec
       -
         Label:
-          default: "External Resources and Alarm Notifications"
+          default: "External Resources"
         Parameters:
           - ParameterStoreHierarchy
           - AlarmNotificationEmail
-          - AddManagedPolicyArnsToCFRole
+          - CloudFormationSvcRoleIncludeManagedPolicyArns
+          - CodeBuildSvcRoleIncludeManagedPolicyArns
       -
         Label:
           default: "Code Repository"
@@ -170,12 +171,20 @@ Parameters:
     AllowedPattern: "^[\\w\\-\\.]+@([\\w\\-]+\\.)+[\\w\\-]{2,4}$"
     ConstraintDescription: "A valid email address"
 
-  AddManagedPolicyArnsToCFRole:
+  CloudFormationSvcRoleIncludeManagedPolicyArns:
     Type: CommaDelimitedList
-    Description: "List of IAM Managed Policy ARNs to add to the CFRole"
+    Description: "List of IAM Managed Policy ARNs to add to the CloudFormation Service Role. Use when external resources provide policies to interact with them."
     Default: ""
-    AllowedPattern: "^arn:aws:iam::\\d{12}:policy\\/[\\w+=,.@\\-\\/]*[\\w+=,.@\\-]+$"
-    ConstraintDescription: "Must be valid IAM Policy ARNs in the format: arn:aws:iam::{account_id}:policy/{policy_name}"
+    AllowedPattern: "^$|^arn:aws:iam::\\d{12}:policy\\/[\\w+=,.@\\-\\/]*[\\w+=,.@\\-]+$"
+    ConstraintDescription: "Must be an empty string or comma delimited valid IAM Policy ARNs in the format: arn:aws:iam::{account_id}:policy/{policy_name}"
+
+  CodeBuildSvcRoleIncludeManagedPolicyArns:
+    Type: CommaDelimitedList
+    Description: "List of IAM Managed Policy ARNs to add to the CodeBuild Service Role. Use when external resources provide policies to interact with them."
+    Default: ""
+    AllowedPattern: "^$|^arn:aws:iam::\\d{12}:policy\\/[\\w+=,.@\\-\\/]*[\\w+=,.@\\-]+$"
+    ConstraintDescription: "Must be an empty string or comma delimited valid IAM Policy ARNs in the format: arn:aws:iam::{account_id}:policy/{policy_name}"
+
 
   # ---------------------------------------------------------------------------
   # Code Repository
@@ -245,7 +254,8 @@ Conditions:
     - !Not [!Equals [!Ref BuildSpec, ""]]
     - !Equals [!Select [0, !Split [":", !Ref BuildSpec]], "s3"]
   UseDefaultBuildSpecLocation: !Equals [!Ref BuildSpec, ""]
-  HasManagedPoliciesForCFRole: !Not [!Equals [!Join [",", !Ref AddManagedPolicyArnsToCFRole], ""]]
+  HasManagedPoliciesForCloudFormationSvcRole: !Not [!Equals [!Join [",", !Ref CloudFormationSvcRoleIncludeManagedPolicyArns], ""]]
+  HasManagedPoliciesForCodeBuildSvcRole: !Not [!Equals [!Join [",", !Ref CodeBuildSvcRoleIncludeManagedPolicyArns], ""]]
 
 # =============================================================================
 # RESOURCES
@@ -385,6 +395,7 @@ Resources:
       RoleName: !Sub "${Prefix}-Worker-${ProjectId}-${StageId}-CodeBuildServiceRole"
       Description: "Service Role to access resources during the application infrastructure build phase of AWS CodePipeline"
       PermissionsBoundary: !If [HasPermissionsBoundaryArn, !Ref PermissionsBoundaryArn, !Ref 'AWS::NoValue' ]
+      ManagedPolicyArns: !If [HasManagedPoliciesForCodeBuildSvcRole, !Ref CodeBuildSvcRoleIncludeManagedPolicyArns, !Ref 'AWS::NoValue' ]
       AssumeRolePolicyDocument:
         Statement:
         - Sid: "CodeBuildTrustPolicy"
@@ -547,6 +558,7 @@ Resources:
       RoleName: !Sub "${Prefix}-Worker-${ProjectId}-${StageId}-CloudFormationSvcRole"
       Description: Creating service role in IAM for AWS CloudFormation
       PermissionsBoundary: !If [HasPermissionsBoundaryArn, !Ref PermissionsBoundaryArn, !Ref 'AWS::NoValue' ]
+      ManagedPolicyArns: !If [HasManagedPoliciesForCloudFormationSvcRole, !Ref CloudFormationSvcRoleIncludeManagedPolicyArns, !Ref 'AWS::NoValue' ]
       AssumeRolePolicyDocument:
         Statement:
         - Sid: "CloudFormationTrustPolicy"
@@ -555,7 +567,6 @@ Resources:
           Principal:
             Service:
             - cloudformation.amazonaws.com
-      ManagedPolicyArns: !If [HasManagedPoliciesForCFRole, !Ref AddManagedPolicyArnsToCFRole, !Ref 'AWS::NoValue' ]
       Policies:
       - PolicyName: CloudFormationRolePolicy
         PolicyDocument:
