@@ -822,7 +822,7 @@ Resources:
             - logs:ListTagsForResource
             Effect: Allow
             Resource: 
-            - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group::*' # cannot scope down to resource as this is a List, but actions are limited
+            - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*' # cannot scope down to resource as this is a List, but actions are limited
 
           # == SSM Parameter Store (Read-Only) ==
           - Sid: "SSMParameterStoreReadThisDeploymentOnly"
