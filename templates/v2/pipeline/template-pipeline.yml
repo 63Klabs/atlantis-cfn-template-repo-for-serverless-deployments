@@ -559,13 +559,17 @@ Resources:
             Resource: 
             - !Sub "arn:aws:iam::${AWS::AccountId}:role${RolePath}${Prefix}-Worker-${ProjectId}-${StageId}-*"
             - !Sub "arn:aws:iam::${AWS::AccountId}:role${RolePath}${Prefix}-${ProjectId}-${StageId}-*"
+            - !Sub "arn:aws:iam::${AWS::AccountId}:policy${RolePath}${Prefix}-Worker-${ProjectId}-${StageId}-*"
+            - !Sub "arn:aws:iam::${AWS::AccountId}:policy${RolePath}${Prefix}-${ProjectId}-${StageId}-*"
 
           - Sid: "IAMGetAndListReadOnlyAll"
             Action:
             - iam:Get*
             - iam:List*
             Effect: Allow
-            Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/*"
+            Resource:
+            - !Sub "arn:aws:iam::${AWS::AccountId}:role/*"
+            - !Sub "arn:aws:iam::${AWS::AccountId}:policy/*"
 
           - Sid: "CloudFormationCRUD"
             Action:
