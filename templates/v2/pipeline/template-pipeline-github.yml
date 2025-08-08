@@ -572,13 +572,17 @@ Resources:
             Resource: 
             - !Sub "arn:aws:iam::${AWS::AccountId}:role${RolePath}${Prefix}-Worker-${ProjectId}-${StageId}-*"
             - !Sub "arn:aws:iam::${AWS::AccountId}:role${RolePath}${Prefix}-${ProjectId}-${StageId}-*"
+            - !Sub "arn:aws:iam::${AWS::AccountId}:policy${RolePath}${Prefix}-Worker-${ProjectId}-${StageId}-*"
+            - !Sub "arn:aws:iam::${AWS::AccountId}:policy${RolePath}${Prefix}-${ProjectId}-${StageId}-*"
 
           - Sid: "IAMGetAndListReadOnlyAll"
             Action:
             - iam:Get*
             - iam:List*
             Effect: Allow
-            Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/*"
+            Resource:
+            - !Sub "arn:aws:iam::${AWS::AccountId}:role/*"
+            - !Sub "arn:aws:iam::${AWS::AccountId}:policy/*"
 
           - Sid: "CloudFormationCRUD"
             Action:
@@ -864,7 +868,6 @@ Resources:
                 - AccountId: !FindInMap [LambdaParamSecretsAccountId, !Ref "AWS::Region", AccountId]
             # https://docs.aws.amazon.com/systems-manager/latest/userguide/ps-integration-lambda-extensions.html#ps-integration-lambda-extensions-add
             # These accounts are owned by AWS so they can be trusted
-
 
   # ---------------------------------------------------------------------------
   # -- AWS CodePipeline Resources --
