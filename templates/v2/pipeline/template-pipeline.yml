@@ -50,6 +50,7 @@ Metadata:
         Parameters:
           - ParameterStoreHierarchy
           - AlarmNotificationEmail
+          - AddManagedPolicyArnsToCFRole
       -
         Label:
           default: "Code Repository"
@@ -169,6 +170,13 @@ Parameters:
     AllowedPattern: "^[\\w\\-\\.]+@([\\w\\-]+\\.)+[\\w\\-]{2,4}$"
     ConstraintDescription: "A valid email address"
 
+  AddManagedPolicyArnsToCFRole:
+    Type: CommaDelimitedList
+    Description: "List of IAM Managed Policy ARNs to add to the CFRole"
+    Default: ""
+    AllowedPattern: "^arn:aws:iam::\\d{12}:policy\\/[\\w+=,.@\\-\\/]*[\\w+=,.@\\-]+$"
+    ConstraintDescription: "Must be valid IAM Policy ARNs in the format: arn:aws:iam::{account_id}:policy/{policy_name}"
+
   # ---------------------------------------------------------------------------
   # Code Repository
   # Used only by this template-pipeline and not passed on to application infrastructure stack except as tags
@@ -237,6 +245,7 @@ Conditions:
     - !Not [!Equals [!Ref BuildSpec, ""]]
     - !Equals [!Select [0, !Split [":", !Ref BuildSpec]], "s3"]
   UseDefaultBuildSpecLocation: !Equals [!Ref BuildSpec, ""]
+  HasManagedPoliciesForCFRole: !Not [!Equals [!Join [",", !Ref AddManagedPolicyArnsToCFRole], ""]]
 
 # =============================================================================
 # RESOURCES
@@ -546,6 +555,7 @@ Resources:
           Principal:
             Service:
             - cloudformation.amazonaws.com
+      ManagedPolicyArns: !If [HasManagedPoliciesForCFRole, !Ref AddManagedPolicyArnsToCFRole, !Ref 'AWS::NoValue' ]
       Policies:
       - PolicyName: CloudFormationRolePolicy
         PolicyDocument:
