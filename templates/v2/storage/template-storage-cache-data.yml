@@ -5,7 +5,7 @@ Description: "Shared storage for Lambda applications utilizing Cache-Data (S3/Dy
 # Atlantis for AWS SAM Deployments
 # Storage Infrastructure Template
 # Author: Chad Kluck - 63klabs.net
-# Version: v0.0.13/2025-05-10
+# Version: v0.0.14/2025-08-08
 
 # Documentation, Issues/Feature Requests, Latest Updates, and Security Reports on GitHub:
 # https://github.com/63klabs/atlantis-cfn-template-repo-for-serverless-deployments/
@@ -32,6 +32,11 @@ Metadata:
           default: "Cache-Data Parameters"
         Parameters:
           - CacheDataPurgeAgeOfCachedBucketObjInDays
+      -
+        Label:
+          default: "Stack Options"
+        Parameters:
+          - CreateManagedLambdaExecutionRolePolicy
 
 # =============================================================================
 # PARAMETERS
@@ -70,7 +75,7 @@ Parameters:
 
   # ---------------------------------------------------------------------------
   # Cache-Data Parameters
-  # From: https://www.npmjs.com/package/@chadkluck/cache-data
+  # From: https://www.npmjs.com/package/@63klabs/cache-data
 
   CacheDataPurgeAgeOfCachedBucketObjInDays:
     Type: Number
@@ -78,6 +83,16 @@ Parameters:
     Default: 15
     MinValue: 3
     ConstraintDescription: "Choose a value of 3 days or greater. This should be slightly longer than the longest cache expiration expected"
+
+  # ---------------------------------------------------------------------------
+  # Cache-Data Parameters
+  # From: https://www.npmjs.com/package/@63klabs/cache-data
+
+  CreateManagedLambdaExecutionRolePolicy:
+    Type: String
+    Description: "Create a managed Lambda Execution Role Policy for the Lambda function. You can set this to FALSE and use your own policy for the Lambda Execution Role."
+    AllowedValues: ["TRUE", "FALSE"]
+    Default: "TRUE"
 
 # =============================================================================
 # CONDITIONS
@@ -87,6 +102,7 @@ Parameters:
 
 Conditions:
   UseS3BucketNameOrgPrefix: !Not [!Equals [!Ref S3BucketNameOrgPrefix, ""]]
+  CreateManagedPolicy: !Equals [!Ref CreateManagedLambdaExecutionRolePolicy, "TRUE"]
 
 # =============================================================================
 # RESOURCES
@@ -182,6 +198,38 @@ Resources:
               StringLike:
                 "aws:SourceArn": !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:project/${Prefix}-*"
 
+  # -- Managed Policy for Lambda Execution Roles accessing Cache-Data --
+  ManagedLambdaExecutionRolePolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: CreateManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub "${Prefix}-${ProjectId}-ManagedLambdaExecutionRolePolicy"
+      Description: "Standard permissions for Managing permissions to access Cache-Data in a Lambda Execution role"
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: LambdaAccessToS3BucketCacheData
+            Action:
+            - s3:PutObject
+            - s3:GetObject
+            - s3:GetObjectVersion
+            Effect: Allow
+            Resource: !Sub 
+              - 'arn:aws:s3:::${BucketName}/cache/*'
+              - BucketName: !Ref CacheDataS3Bucket
+          - Sid: LambdaAccessToDynamoDBTableCacheData
+            Action:
+            - dynamodb:GetItem
+            - dynamodb:Scan
+            - dynamodb:Query
+            - dynamodb:BatchGetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:BatchWriteItem
+            Effect: Allow
+            Resource: !Sub 
+              - 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TableName}'
+              - TableName: !Ref CacheDataDynamoDbTable
 
 # =============================================================================
 # OUTPUTS
@@ -226,3 +274,10 @@ Outputs:
     Value: !GetAtt CacheDataDynamoDbTable.Arn
     Export:
       Name: !Sub '${Prefix}-CacheDataDynamoDbTableArn'
+
+  ManagedLambdaExecutionRolePolicyArn:
+    Condition: CreateManagedPolicy
+    Description: "Managed policy ARN for Lambda Execution Role to access Cache-Data resources"
+    Value: !Ref ManagedLambdaExecutionRolePolicy
+    Export:
+      Name: !Sub '${Prefix}-CacheDataManagedLambdaExecutionRolePolicy'
