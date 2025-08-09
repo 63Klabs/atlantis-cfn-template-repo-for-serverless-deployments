@@ -1,11 +1,11 @@
 
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "Prefix-based IAM Role and Managed Policy for Atlantis Service Role to be assumed by developers when deploying a pipeline that manages an application stack - Deployed using SAM"
+Description: "Prefix-based IAM Role and Managed Policy for Atlantis Service Role to be assumed by developers when deploying S3, DynamoDb, and access policies - Deployed using SAM"
 
 # Atlantis for AWS SAM Deployments
 # Service Role Infrastructure Template 
 # Author: Chad Kluck - 63klabs.net
-# Version: v0.0.14/2025-02-25
+# Version: v0.0.1/2025-08-09
 
 # Documentation, Issues/Feature Requests, Latest Updates, and Security Reports on GitHub:
 # https://github.com/63klabs/atlantis-cfn-template-repo-for-serverless-deployments/
@@ -55,7 +55,7 @@ Parameters:
 
   Prefix:
     Type: String
-    Description: "Prefix pre-pended to all resources. This can be thought of as a Name Space used to identify ownership/access for teams, departments, etc. For example, resources named ws-* could belong to the web service team and could have IAM permissions to allow access to other ws-* resources. The Prefix must have a corresponding CloudFormation Service Role. Short, descriptive 2-6 character values work best. Due to resource naming length restrictions, length of Prefix + Project ID should not exceed 28 characters. Resources are named <Prefix>-<ProjectId>-<StageId>-<ResourceId>"
+    Description: "Prefix pre-pended to all resources. This can be thought of as a Name Space used to identify ownership/access for teams, departments, etc. For example, resources named ws-* could belong to the web service team and could have IAM permissions to allow access to other ws-* resources. The Prefix must have a corresponding CloudFormation Service Role. Short, descriptive 2-6 character values work best. Due to resource naming length restrictions, length of Prefix + Project ID should not exceed 28 characters. Resources are named <Prefix>-<ProjectId>-<ResourceId>"
     Default: "acme" 
     AllowedPattern: "^[a-z][a-z0-9-]{0,6}[a-z0-9]$"
     MinLength: 2
@@ -71,7 +71,7 @@ Parameters:
     ConstraintDescription: "2 to 8 characters. UPPER case alphanumeric and dashes. Must start with a letter and end with a letter or number."
   S3BucketNameOrgPrefix:
     Type: String
-    Description: "By default, to enforce uniqueness, buckets include account and region in the bucket name. However, due to character limits, you can specify your own S3 prefix (like an org code). This will be used in addition to the Prefix entered above. Note that this length is shared with the recommended length of 20 characters for Resource Identifiers. So if you have a 10 character S3BucketNameOrgPrefix, you are limited to 10 characters for your bucket name identifier in your templates. Buckets are named <Prefix>-<Region>-<AccountId>-<ProjectId>-<StageId>-<ResourceId> or <S3OrgPrefix>-<Prefix>-<ProjectId>-<StageId>-<ResourceId>"
+    Description: "By default, to enforce uniqueness, buckets include account and region in the bucket name. However, due to character limits, you can specify your own S3 prefix (like an org code). This will be used in addition to the Prefix entered above. Note that this length is shared with the recommended length of 20 characters for Resource Identifiers. So if you have a 10 character S3BucketNameOrgPrefix, you are limited to 10 characters for your bucket name identifier in your templates. Buckets are named <Prefix>-<Region>-<AccountId>-<ProjectId>-<ResourceId> or <S3OrgPrefix>-<Prefix>-<ProjectId>-<ResourceId>"
     Default: ""
     AllowedPattern: "^[a-z0-9][a-z0-9-]{0,18}[a-z0-9]$|^$"
     ConstraintDescription: "May be empty or 2 to 20 characters (8 or less recommended). Lower case alphanumeric and dashes. Must start and end with a letter or number."
@@ -144,19 +144,19 @@ Resources:
   # ---------------------------------------------------------------------------
   # -- Prefix-based IAM Service Roles and Policy --
   # --
-  # When deploying a Pipeline Stack, it must be given a service role
+  # When deploying a Storage Stack, it must be given a service role
   # --
   # Practice The Principle of Least Privilege 
   # IAM policies should be scoped down to give only necessary actions on 
   # resources specific to this prefix.
   # --
   
-  PrefixBasedCloudFormationPipelineMgmtServiceRole:
+  PrefixBasedCloudFormationStorageMgmtServiceRole:
     Type: AWS::IAM::Role
     Properties:
       Path: !Ref ServiceRolePath
-      RoleName: !Sub "${PrefixUpper}-CloudFormation-Service-Role-Pipeline-Management"
-      Description: !Sub "Service Role to Create and Manage an AWS CodePipeline for application projects under prefix ${Prefix}"
+      RoleName: !Sub "${PrefixUpper}-CloudFormation-Service-Role-Storage-Management"
+      Description: !Sub "Service Role to Create and Manage an AWS S3, DynamoDb, and application access policies under prefix ${Prefix}"
       PermissionsBoundary: !If [HasPermissionsBoundaryArn, !Ref PermissionsBoundaryArn, !Ref 'AWS::NoValue' ]
 
       AssumeRolePolicyDocument:
@@ -169,7 +169,7 @@ Resources:
             - cloudformation.amazonaws.com
 
       Policies:
-      - PolicyName: !Sub "${PrefixUpper}-CloudFormation-Service-Role-Pipeline-Management-Policy"
+      - PolicyName: !Sub "${PrefixUpper}-CloudFormation-Service-Role-Storage-Management-Policy"
         PolicyDocument:
           Version: "2012-10-17"
           Statement:
@@ -217,24 +217,66 @@ Resources:
                 - !Sub "${S3BucketNameOrgPrefix}-${Prefix}"
                 - !Sub "${Prefix}-${AWS::Region}-${AWS::AccountId}"
 
-
-          - Sid: ManageLogsByResourcePrefix
-            Effect: Allow
+          # == CloudWatch Alarms ==
+          - Sid: "CloudWatchAlarmsLimitedCRUDThisDeploymentOnly"
             Action:
-            - logs:*
-            Resource: !Sub "arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${Prefix}-*"
-
-          - Sid: ManageCodePipelineByResourcePrefix
+            - cloudwatch:PutMetricAlarm
+            - cloudwatch:DeleteAlarm*
+            - cloudwatch:TagResource
+            - cloudwatch:UntagResource
+            - cloudwatch:DescribeAlarms
             Effect: Allow
-            Action:
-            - codepipeline:*
-            Resource: !Sub "arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${Prefix}-*"
+            Resource:
+              - !Sub 'arn:aws:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:${Prefix}-*'
 
-          - Sid: ManageCodeBuildByResourcePrefix
-            Effect: Allow
+          # == CloudWatch Logs ==
+          - Sid: "LogGroupsLimitedCRUDThisDeploymentOnly"
             Action:
-            - codebuild:*
-            Resource: !Sub "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${Prefix}-*"
+            - logs:DeleteLogGroup
+            - logs:DeleteRetentionPolicy
+            - logs:PutRetentionPolicy
+            - logs:CreateLogGroup
+            - logs:TagLogGroup # AWS is phasing out, replacing with TagResource
+            - logs:UntagLogGroup # AWS is phasing out, replacing with UntagResource
+            - logs:TagResource
+            - logs:UntagResource
+            - logs:ListTagsForResource
+            - logs:DescribeLogGroups
+            Effect: Allow
+            Resource:
+            - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${Prefix}-*'
+
+          # ===================================================================
+          # Read-only permissions (typically for resources created by other stacks)
+          # ===================================================================
+
+          - Sid: "LogGroupsListAll"
+            Action:
+            - logs:DescribeLogGroups
+            - logs:ListTagsLogGroup
+            - logs:ListTagsForResource
+            Effect: Allow
+            Resource: 
+            - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*' # cannot scope down to resource as this is a List, but actions are limited
+
+          # == Lambda Function ==
+          - Sid: "LambdaCRUDThisDeploymentOnly"
+            Action:
+            - lambda:*
+            Effect: Allow
+            Resource:
+            - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Prefix}-*'
+            - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${Prefix}-*:*'
+            - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:${Prefix}-*'
+            - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:event-source-mapping:*'
+
+          # == DynamoDb ==
+          - Sid: "DynamoDbCRUDThisDeploymentOnly"
+            Action:
+            - dynamodb:*
+            Effect: Allow
+            Resource:
+              - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${Prefix}-*'
 
           - Sid: PassAndDeleteWorkerRolesByResourcePrefix
             Effect: Allow
@@ -284,7 +326,7 @@ Resources:
   PrefixBasedManagedPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
-      Description: !Sub "Managed Policy to Create and Manage an AWS CodePipeline for application projects under prefix ${Prefix}. Can be attached to Roles, Groups, or Users."
+      Description: !Sub "Managed Policy to Create and Manage an AWS S3, DynamoDb, and application access policies under prefix ${Prefix}. Can be attached to Roles, Groups, or Users."
       Path: !Ref ServiceRolePath
       Groups: !If [HasGroupNames, !Ref GroupNames, !Ref 'AWS::NoValue' ]
       Roles: !If [HasRoleNames, !Ref RoleNames, !Ref 'AWS::NoValue' ]
@@ -297,7 +339,7 @@ Resources:
             Action:
               - iam:GetRole
               - iam:PassRole 
-            Resource: !GetAtt PrefixBasedCloudFormationPipelineMgmtServiceRole.Arn
+            Resource: !GetAtt PrefixBasedCloudFormationStorageMgmtServiceRole.Arn
             Condition:
               StringEquals:
                 "iam:PassedToService": "cloudformation.amazonaws.com"
@@ -313,26 +355,26 @@ Resources:
 
 Outputs:
 
-  PrefixBasedCloudFormationPipelineMgmtServiceRoleArn:
-    Description: "The ARN of the Prefix-based CloudFormation Service Role for Pipeline Management"
-    Value: !GetAtt PrefixBasedCloudFormationPipelineMgmtServiceRole.Arn
+  PrefixBasedCloudFormationStorageMgmtServiceRoleArn:
+    Description: "The ARN of the Prefix-based CloudFormation Service Role for Storage Management"
+    Value: !GetAtt PrefixBasedCloudFormationStorageMgmtServiceRole.Arn
     Export:
-      Name: !Sub "${PrefixUpper}-CloudFormation-Pipeline-Mgmt-Service-Role-Arn"
+      Name: !Sub "${PrefixUpper}-CloudFormation-Storage-Mgmt-Service-Role-Arn"
 
-  PrefixBasedCloudFormationPipelineMgmtServiceRoleName:
+  PrefixBasedCloudFormationStorageMgmtServiceRoleName:
     Description: "The Name of the Prefix-based CloudFormation Service Role"
-    Value: !Ref PrefixBasedCloudFormationPipelineMgmtServiceRole
+    Value: !Ref PrefixBasedCloudFormationStorageMgmtServiceRole
     Export:
-      Name: !Sub "${PrefixUpper}-CloudFormation-Pipeline-Mgmt-Service-Role-Name"
+      Name: !Sub "${PrefixUpper}-CloudFormation-Storage-Mgmt-Service-Role-Name"
 
   PrefixBasedManagedPolicyArn:
     Description: "The ARN of the Prefix-based Managed Policy"
     Value: !Ref PrefixBasedManagedPolicy
     Export:
-      Name: !Sub "${PrefixUpper}-CloudFormation-Pipeline-Mgmt-Service-ManagedPolicy-Arn"
+      Name: !Sub "${PrefixUpper}-CloudFormation-Storage-Mgmt-Service-ManagedPolicy-Arn"
 
   PrefixBasedManagedPolicyName:
     Description: "The Name of the Prefix-based Managed Policy"
     Value: !Ref PrefixBasedManagedPolicy
     Export:
-      Name: !Sub "${PrefixUpper}-CloudFormation-Pipeline-Mgmt-Service-ManagedPolicy-Name"
+      Name: !Sub "${PrefixUpper}-CloudFormation-Storage-Mgmt-Service-ManagedPolicy-Name"
