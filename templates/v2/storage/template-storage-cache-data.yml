@@ -27,6 +27,8 @@ Metadata:
           - Prefix
           - ProjectId
           - S3BucketNameOrgPrefix
+          - RolePath
+
       -
         Label:
           default: "Cache-Data Parameters"
@@ -72,6 +74,13 @@ Parameters:
     Default: ""
     AllowedPattern: "^[a-z0-9][a-z0-9-]{0,18}[a-z0-9]$|^$"
     ConstraintDescription: "May be empty or 2 to 20 characters (8 or less recommended). Lower case alphanumeric and dashes. Must start and end with a letter or number."
+
+  RolePath:
+    Type: String
+    Description: "Application Role Path to use for IAM Roles and Policies for Applications. You may wish to separate out your applications from users, or create separate paths per prefix or application. Specific paths may required by permission boundaries. Ex: /ws-hello-world-test/ or /app_role/"
+    Default: "/"
+    AllowedPattern: "^\\/([a-zA-Z0-9-_]+[\\/])+$|^\\/$"
+    ConstraintDescription: "May only contain alphanumeric characters, forward slashes, underscores, and dashes. Must begin and end with a slash."
 
   # ---------------------------------------------------------------------------
   # Cache-Data Parameters
@@ -205,6 +214,7 @@ Resources:
     Properties:
       ManagedPolicyName: !Sub "${Prefix}-${ProjectId}-ManagedLambdaExecutionRolePolicy"
       Description: "Standard permissions for Managing permissions to access Cache-Data in a Lambda Execution role"
+      Path: !Ref RolePath
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
