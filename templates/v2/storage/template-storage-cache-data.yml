@@ -188,8 +188,8 @@ Resources:
             Principal: "*"
             Action: "s3:*"
             Resource:
-              - !GetAtt CacheDataS3Bucket.Arn
-              - !Join [ '', [ !GetAtt CacheDataS3Bucket.Arn, '/*' ] ]
+              - !Sub "arn:aws:s3:::${CacheDataS3Bucket}"
+              - !Sub "arn:aws:s3:::${CacheDataS3Bucket}/*"
             Condition:
               Bool:
                 "aws:SecureTransport": false
@@ -202,7 +202,7 @@ Resources:
             Effect: Allow
             Principal:
               Service: lambda.amazonaws.com
-            Resource: !Sub "${CacheDataS3Bucket.Arn}/*"
+            Resource: !Sub "arn:aws:s3:::${CacheDataS3Bucket}/cache/*"
             Condition:
               StringLike:
                 "aws:SourceArn": !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:project/${Prefix}-*"
@@ -218,15 +218,21 @@ Resources:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
+
           - Sid: LambdaAccessToS3BucketCacheData
             Action:
             - s3:PutObject
             - s3:GetObject
             - s3:GetObjectVersion
             Effect: Allow
-            Resource: !Sub 
-              - 'arn:aws:s3:::${BucketName}/cache/*'
-              - BucketName: !Ref CacheDataS3Bucket
+            Resource: !Sub 'arn:aws:s3:::${CacheDataS3Bucket}/cache/*'
+
+          - Sid: LambdaAccessToS3Bucket
+            Action:
+            - s3:ListBucket
+            Effect: Allow
+            Resource: !Sub 'arn:aws:s3:::${CacheDataS3Bucket}'
+
           - Sid: LambdaAccessToDynamoDBTableCacheData
             Action:
             - dynamodb:GetItem
@@ -275,13 +281,13 @@ Outputs:
 
   S3BucketArnExport:
     Description: "S3 Bucket ARN"
-    Value: !GetAtt CacheDataS3Bucket.Arn
+    Value: !Sub "arn:aws:s3:::${CacheDataS3Bucket}"
     Export:
       Name: !Sub '${Prefix}-CacheDataS3BucketArn'
 
   DynamoDbTableArnExport:
     Description: "DynamoDb Table ARN"
-    Value: !GetAtt CacheDataDynamoDbTable.Arn
+    Value: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CacheDataDynamoDbTable}"
     Export:
       Name: !Sub '${Prefix}-CacheDataDynamoDbTableArn'
 
