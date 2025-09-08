@@ -334,21 +334,6 @@ Resources:
           Version: "2012-10-17"
           Statement:
 
-          - Sid: SourcePhaseCodeCommitReadOnly
-            Effect: Allow
-            Action:
-            - codecommit:GetRepositoryTriggers
-            - codecommit:GitPull
-            - codecommit:GetObjectIdentifier
-            - codecommit:GetFolder
-            - codecommit:GetFile
-            - codecommit:GetRepository
-            - codecommit:GetBranch
-            - codecommit:GetCommit
-            - codecommit:UploadArchive
-            - codecommit:GetUploadArchiveStatus
-            Resource: !Sub 'arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:${Repository}'
-
           - Sid: BuildPhase
             Action:
             - codebuild:*
@@ -395,6 +380,7 @@ Resources:
             Effect: Allow
             Action:
             - codeconnections:UseConnection
+            - codestar-connections:UseConnection # deprecated, but the Pipeline Source Stage only works if using CodeStar
             Resource: !Ref GitHubConnectionArn
 
   # -- CodeBuild Service Role --
@@ -1023,7 +1009,7 @@ Resources:
           ActionTypeId:
             Category: Source
             Owner: AWS
-            Provider: CodeConnections
+            Provider: CodeStarSourceConnection # Deprecated, but CodeConnections throws error
             Version: 1
           Configuration:
             ConnectionArn: !Ref GitHubConnectionArn
