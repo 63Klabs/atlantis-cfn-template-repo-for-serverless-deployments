@@ -26,7 +26,7 @@ Parameters:
     
 Resources:
   GitHubConnection:
-    Type: AWS::CodeStarConnections::Connection
+    Type: AWS::CodeConnections::Connection
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
