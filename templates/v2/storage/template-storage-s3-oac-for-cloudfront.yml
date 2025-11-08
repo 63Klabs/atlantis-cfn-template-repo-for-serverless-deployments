@@ -152,7 +152,7 @@ Resources:
         LogFilePrefix: !Join
           - "-"
           - - !If [UseS3BucketNameOrgPrefix, !Sub "${S3BucketNameOrgPrefix}-${Prefix}", !Sub "${Prefix}" ]
-            - !Sub "${ProjectId}-${AWS::Region}-${AWS::AccountId}"
+            - !Sub "${ProjectId}-${AWS::Region}-${AWS::AccountId}/"
       - !Ref AWS::NoValue
 
       NotificationConfiguration:
