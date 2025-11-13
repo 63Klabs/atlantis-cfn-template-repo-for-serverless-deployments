@@ -51,7 +51,7 @@ Metadata:
         Parameters:
           - DeployEnvironment
           - CloudFrontPriceClass
-          - DnsRecordTTL
+          # - DnsRecordTTL
 
       - Label:
           default: Routing for CloudFront
@@ -72,7 +72,7 @@ Metadata:
       - Label:
           default: API behind CloudFront Forwarding
         Parameters: 
-          - AllowedMethodsForApi
+          # - AllowedMethodsForApi
           - HeadersToForwardToApi
 
 # =============================================================================
@@ -339,11 +339,11 @@ Conditions:
     - !Condition HasRouteForApi
     - !Condition ApiIsBehindCloudFront
 
-  CloudFrontHasRoutes: !Or
-    - !Condition HasRouteForStaticOrigin
-    - !And
-      - !Condition HasRouteForApi
-      - !Condition ApiIsBehindCloudFront 
+  # CloudFrontHasRoutes: !Or
+  #   - !Condition HasRouteForStaticOrigin
+  #   - !And
+  #     - !Condition HasRouteForApi
+  #     - !Condition ApiIsBehindCloudFront 
 
   CreateDistribution: !Or
     - !Condition HasStaticOrigin
