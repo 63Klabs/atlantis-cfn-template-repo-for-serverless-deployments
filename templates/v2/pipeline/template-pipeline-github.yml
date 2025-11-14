@@ -597,7 +597,7 @@ Resources:
             Resource: 
             - !Sub "arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${Prefix}-${ProjectId}-${StageId}-application/*"
 
-          - Sid: "AllowServerlessOperations"
+          - Sid: "AllowTransformOperations"
             Action:
             - cloudformation:CreateChangeSet
             - cloudformation:ExecuteChangeSet
@@ -608,6 +608,7 @@ Resources:
             Effect: Allow
             Resource:
             - "arn:aws:cloudformation:*:aws:transform/Serverless-2016-10-31"
+            - "arn:aws:cloudformation:*:aws:transform/LanguageExtensions"
             - "arn:aws:cloudformation:*:aws:transform/Include"
 
           - Sid: "CodeDeployCRUDThisDeploymentOnly"
