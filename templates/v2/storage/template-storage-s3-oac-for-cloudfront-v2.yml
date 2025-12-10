@@ -113,7 +113,7 @@ Parameters:
     Type: String
     Description: "ARN of the Lambda function providing your invalidator service for CloudFront distributions."
     Default: ""
-    AllowedPattern: "^$|^arn:aws:lambda:[a-z0-9-]+:\\d{12}:function:\\/[a-zA-Z0-9-_]+$"
+    AllowedPattern: "^$|^arn:aws:lambda:[a-z0-9-]+:\\d{12}:function:[a-zA-Z0-9-_]+$"
     ConstraintDescription: "Must be empty or a valid ARN for Lambda"
 
 # =============================================================================
