@@ -111,10 +111,10 @@ Parameters:
 
   InvalidatorArn:
     Type: String
-    Description: "ARN of the external invalidator service (Lambda, SQS, Step Functions, or SNS). Leave empty to disable cache invalidation."
+    Description: "ARN of the Lambda function providing your invalidator service for CloudFront distributions."
     Default: ""
-    AllowedPattern: "^$|^arn:aws:(lambda|sqs|states|sns):[a-z0-9-]+:\\d{12}:(function|queue|stateMachine|topic)\\/[a-zA-Z0-9-_]+$"
-    ConstraintDescription: "Must be empty or a valid ARN for Lambda, SQS, Step Functions, or SNS"
+    AllowedPattern: "^$|^arn:aws:lambda:[a-z0-9-]+:\\d{12}:function:\\/[a-zA-Z0-9-_]+$"
+    ConstraintDescription: "Must be empty or a valid ARN for Lambda"
 
 # =============================================================================
 # CONDITIONS
@@ -124,7 +124,7 @@ Parameters:
 
 Conditions:
   UseS3BucketNameOrgPrefix: !Not [!Equals [!Ref S3BucketNameOrgPrefix, ""]]
-  HasPermissionsBoundaryArn: !Not [!Equals [!Ref PermissionsBoundaryArn, ""]]
+  # HasPermissionsBoundaryArn: !Not [!Equals [!Ref PermissionsBoundaryArn, ""]]
   HasLoggingBucket: !Not [!Equals [!Ref S3LogBucketName, ""]]
   HasInvalidatorArn: !Not [!Equals [!Ref InvalidatorArn, ""]]
 
