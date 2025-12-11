@@ -11,7 +11,7 @@ from hypothesis import given, strategies as st, settings
 
 
 # The ARN pattern from the CloudFormation template
-ARN_PATTERN = r"^$|^arn:aws:(lambda|sqs|states|sns):[a-z0-9-]+:\d{12}:(function|queue|stateMachine|topic)\/[a-zA-Z0-9-_]+$"
+ARN_PATTERN = r"^$|^arn:aws:(lambda|sqs|states|sns):[a-z0-9-]+:\d{12}:(function:|queue\/|stateMachine\/|topic\/)[a-zA-Z0-9-_]+$"
 
 
 # Strategy for generating valid AWS regions
@@ -153,8 +153,8 @@ def test_empty_string_is_accepted():
 # Specific examples for each service type
 @pytest.mark.parametrize("arn,expected", [
     # Valid Lambda ARNs
-    ("arn:aws:lambda:us-east-1:123456789012:function/my-function", True),
-    ("arn:aws:lambda:eu-west-1:999999999999:function/test_func-123", True),
+    ("arn:aws:lambda:us-east-1:123456789012:function:my-function", True),
+    ("arn:aws:lambda:eu-west-1:999999999999:function:test_func-123", True),
     
     # Valid SQS ARNs
     ("arn:aws:sqs:us-west-2:123456789012:queue/my-queue", True),
