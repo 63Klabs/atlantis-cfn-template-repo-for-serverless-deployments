@@ -318,16 +318,16 @@ Conditions:
   HasRouteForApi: !Not [!Equals [!Ref PathApi, '']]
 
   StaticOriginIsRoot: !And
-    - HasStaticOrigin
+    - !Condition HasStaticOrigin
     - !Equals [!Ref PathStatic, '']
 
   ApiIsBehindCloudFront: !And 
-    - HasApiGatewayOrigin
+    - !Condition HasApiGatewayOrigin
     - !Equals [!Ref DomainForApiGateway, '']
 
   HasRouteForApiInCloudFront: !And
-    - HasRouteForApi
-    - ApiIsBehindCloudFront
+    - !Condition HasRouteForApi
+    - !Condition ApiIsBehindCloudFront
 
   # CloudFrontHasRoutes: !Or
   #   - HasRouteForStaticOrigin
@@ -336,8 +336,8 @@ Conditions:
   #     - ApiIsBehindCloudFront 
 
   CreateDistribution: !Or
-    - HasStaticOrigin
-    - ApiIsBehindCloudFront
+    - !Condition HasStaticOrigin
+    - !Condition ApiIsBehindCloudFront
 
   CreateDnsRecordForCloudFront: !And
     - !Not [!Equals [!Ref DomainForCloudFront, '']]
