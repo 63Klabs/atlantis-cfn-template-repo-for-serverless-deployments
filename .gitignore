@@ -2,6 +2,7 @@
 .*
 *.zip
 cfn-lint-env
+venv
 
 # Ignore program and OS files
 .vscode

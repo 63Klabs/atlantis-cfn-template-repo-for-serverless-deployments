@@ -44,12 +44,11 @@ Metadata:
           - S3ArtifactsBucket
           - S3StaticHostBucket
           - BuildSpec
-
       - 
         Label:
           default: "Post Deploy Environment Information"
         Parameters:
-          - EnablePostDeployStage
+          - PostDeployStageEnabled
           - PostDeployS3StaticHostBucket
           - PostDeployBuildSpec
       -
@@ -298,8 +297,10 @@ Conditions:
   UseDefaultBuildSpecLocation: !Equals [!Ref BuildSpec, ""]
   HasManagedPoliciesForCloudFormationSvcRole: !Not [!Equals [!Join [",", !Ref CloudFormationSvcRoleIncludeManagedPolicyArns], ""]]
 
+  IsPostDeployEnabled: !Equals [!Ref PostDeployStageEnabled, "true"]
   HasPostDeployS3StaticHostBucket: !Not [!Equals [!Ref PostDeployS3StaticHostBucket, ""]]
-  HasPostDeployBuildSpec: !And 
+  HasPostDeployBuildSpecS3Location: !And 
+    - !Condition IsPostDeployEnabled
     - !Not [!Equals [!Ref PostDeployBuildSpec, ""]]
     - !Equals [!Select [0, !Split [":", !Ref PostDeployBuildSpec]], "s3"]
   UseDefaultPostDeployBuildSpecLocation: !Equals [!Ref PostDeployBuildSpec, ""]
@@ -574,7 +575,7 @@ Resources:
 
   PostDeployServiceRole:
     Type: AWS::IAM::Role
-    Condition: IsNotDevelopment
+    Condition: !And [IsNotDevelopment, IsPostDeployEnabled]
     Properties:
       Path: !Ref RolePath
       RoleName: !Sub "${Prefix}-Worker-${ProjectId}-${StageId}-PostDeployServiceRole"
@@ -686,7 +687,7 @@ Resources:
 
           # Copy and read from a remote bucket containing the buildspec.yml file
           - !If 
-            - HasS3PostDeploySpecLocation
+            - HasPostDeployBuildSpecS3Location
             - Sid: CopyPostDeploySpecFromS3ForBuild
               Action:
               - s3:Get*
@@ -696,12 +697,12 @@ Resources:
                 - !Join
                   - ""
                   - - "arn:aws:s3:::"
-                    - !Select [0, !Split ["/", !Select [1, !Split ["s3://", !Ref BuildSpec]]]]
+                    - !Select [0, !Split ["/", !Select [1, !Split ["s3://", !Ref PostDeployBuildSpec]]]]
                 # Specific file permission - exact path to the buildspec file
                 - !Join
                   - ""
                   - - "arn:aws:s3:::"
-                    - !Select [1, !Split ["s3://", !Ref BuildSpec]]
+                    - !Select [1, !Split ["s3://", !Ref PostDeployBuildSpec]]
 
             - !Ref 'AWS::NoValue'
 
@@ -1192,7 +1193,7 @@ Resources:
     Type: AWS::CodeBuild::Project
     # DependsOn:
     # - CodeBuildServiceRole
-    Condition: IsNotDevelopment
+    Condition: !And [IsNotDevelopment, IsPostDeployEnabled]
     Properties:
       Name: !Sub '${Prefix}-${ProjectId}-${StageId}-PostDeploy'
       Description: !Sub "PostDeploy using CodeBuild Project for ${Prefix}-${ProjectId}-${StageId}"
@@ -1255,7 +1256,7 @@ Resources:
       Source:
         Type: CODEPIPELINE
         BuildSpec: !If 
-          - HasPostDeployBuildSpec
+          - HasPostDeployBuildSpecS3Location
           - !Join
             - ""
             - - "arn:aws:s3:::"
@@ -1271,7 +1272,7 @@ Resources:
 
   PostDeployLogGroup:
     Type: AWS::Logs::LogGroup
-    Condition: IsNotDevelopment
+    Condition: !And [IsNotDevelopment, IsPostDeployEnabled]
     DeletionPolicy: Delete
     UpdateReplacePolicy: Retain
     Properties:
@@ -1295,8 +1296,11 @@ Resources:
     # This includes the AWS CodePipeline service role, the artifact bucket, the AWS CodeBuild build projectTemplateId,
     # and the role it will pass to AWS CloudFormation to create stacks.
     Type: AWS::CodePipeline::Pipeline
-    DependsOn:
-    - CodeBuildProject
+    DependsOn: !If
+      - IsPostDeployEnabled
+      - - CodeBuildProject
+        - PostDeployProject
+      - - CodeBuildProject
     Condition: IsNotDevelopment
     Properties:
       Name: !Sub '${Prefix}-${ProjectId}-${StageId}-Pipeline'
@@ -1304,108 +1308,179 @@ Resources:
         Location: !Ref S3ArtifactsBucket
         Type: S3
       RoleArn: !GetAtt 'CodePipelineServiceRole.Arn'
-      Stages:
-      -
-        Name: Source
-        Actions:
-        -
-          Name: ApplicationSource
-          ActionTypeId:
-            Category: Source
-            Owner: AWS
-            Provider: CodeCommit
-            Version: 1
-          Configuration:
-            BranchName: !Ref RepositoryBranch
-            PollForSourceChanges: false
-            RepositoryName: !Ref Repository
-          InputArtifacts: []
-          OutputArtifacts:
-          - Name: !Sub "${ProjectId}-${StageId}-SourceArtifact"
-          RunOrder: 1
-      -
-        Name: Build
-        Actions:
-        -
-          Name: PackageExport
-          ActionTypeId:
-            Category: Build
-            Owner: AWS
-            Provider: CodeBuild
-            Version: 1
-          Configuration:
-            ProjectName: !Sub '${Prefix}-${ProjectId}-${StageId}-Build'
-          InputArtifacts:
-          - Name: !Sub "${ProjectId}-${StageId}-SourceArtifact"
-          OutputArtifacts:
-          - Name: !Sub "${ProjectId}-${StageId}-BuildArtifact"
-          RunOrder: 1
-      -
-        Name: Deploy
-        Actions:
-        -
-          Name: GenerateChangeSet
-          ActionTypeId:
-            Category: Deploy
-            Owner: AWS
-            Provider: CloudFormation
-            Version: 1
-          Configuration:
-            StackName: !Sub "${Prefix}-${ProjectId}-${StageId}-application"
-            ActionMode: CHANGE_SET_REPLACE
-            Capabilities: CAPABILITY_NAMED_IAM
-            ChangeSetName: pipeline-changeset
-            RoleArn: !GetAtt 'CloudFormationSvcRole.Arn'
-            # These are the parameters that will be set in your AWS CloudFormation stack.
-            ParameterOverrides: !Sub '{
-              "Prefix": "${Prefix}",
-              "ProjectId": "${ProjectId}",
-              "StageId": "${StageId}",
-              "S3BucketNameOrgPrefix": "${S3BucketNameOrgPrefix}",
-              "RolePath": "${RolePath}",
-              "DeployEnvironment": "${DeployEnvironment}",
-              "ParameterStoreHierarchy": "${ParameterStoreHierarchy}${DeployEnvironment}/${Prefix}-${ProjectId}-${StageId}/",
-              "DeployRole": "${CodeDeployServiceRole.Arn}",
-              "AlarmNotificationEmail": "${AlarmNotificationEmail}",
-              "PermissionsBoundaryArn": "${PermissionsBoundaryArn}"
-            }'
-            TemplateConfiguration: !Sub '${ProjectId}-${StageId}-BuildArtifact::application-infrastructure/template-configuration.json'
-            TemplatePath: !Sub "${ProjectId}-${StageId}-BuildArtifact::application-infrastructure/template-export.yml"
-          InputArtifacts:
-          - Name: !Sub "${ProjectId}-${StageId}-BuildArtifact"
-          OutputArtifacts: []
-          RunOrder: 1
-        -
-          Name: ExecuteChangeSet
-          ActionTypeId:
-            Category: Deploy
-            Owner: AWS
-            Provider: CloudFormation
-            Version: 1
-          Configuration:
-            ActionMode: CHANGE_SET_EXECUTE
-            ChangeSetName: pipeline-changeset
-            StackName: !Sub "${Prefix}-${ProjectId}-${StageId}-application"
-          InputArtifacts: []
-          OutputArtifacts: []
-          RunOrder: 2
-      -
-        Name: PostDeploy
-        Actions:
-        -
-          Name: PackageExport
-          ActionTypeId:
-            Category: Build
-            Owner: AWS
-            Provider: CodeBuild
-            Version: 1
-          Configuration:
-            ProjectName: !Sub '${Prefix}-${ProjectId}-${StageId}-PostDeploy'
-          InputArtifacts:
-          - Name: !Sub "${ProjectId}-${StageId}-SourceArtifact"
-          OutputArtifacts:
-          - Name: !Sub "${ProjectId}-${StageId}-PostDeployArtifact"
-          RunOrder: 1
+      Stages: !If
+        - IsPostDeployEnabled
+        - # PostDeploy enabled: Include all stages (Source, Build, Deploy, PostDeploy)
+          - Name: Source
+            Actions:
+            - Name: ApplicationSource
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeCommit
+                Version: 1
+              Configuration:
+                BranchName: !Ref RepositoryBranch
+                PollForSourceChanges: false
+                RepositoryName: !Ref Repository
+              InputArtifacts: []
+              OutputArtifacts:
+              - Name: !Sub "${ProjectId}-${StageId}-SourceArtifact"
+              RunOrder: 1
+          - Name: Build
+            Actions:
+            - Name: PackageExport
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              Configuration:
+                ProjectName: !Sub '${Prefix}-${ProjectId}-${StageId}-Build'
+              InputArtifacts:
+              - Name: !Sub "${ProjectId}-${StageId}-SourceArtifact"
+              OutputArtifacts:
+              - Name: !Sub "${ProjectId}-${StageId}-BuildArtifact"
+              RunOrder: 1
+          - Name: Deploy
+            Actions:
+            - Name: GenerateChangeSet
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: 1
+              Configuration:
+                StackName: !Sub "${Prefix}-${ProjectId}-${StageId}-application"
+                ActionMode: CHANGE_SET_REPLACE
+                Capabilities: CAPABILITY_NAMED_IAM
+                ChangeSetName: pipeline-changeset
+                RoleArn: !GetAtt 'CloudFormationSvcRole.Arn'
+                # These are the parameters that will be set in your AWS CloudFormation stack.
+                ParameterOverrides: !Sub '{
+                  "Prefix": "${Prefix}",
+                  "ProjectId": "${ProjectId}",
+                  "StageId": "${StageId}",
+                  "S3BucketNameOrgPrefix": "${S3BucketNameOrgPrefix}",
+                  "RolePath": "${RolePath}",
+                  "DeployEnvironment": "${DeployEnvironment}",
+                  "ParameterStoreHierarchy": "${ParameterStoreHierarchy}${DeployEnvironment}/${Prefix}-${ProjectId}-${StageId}/",
+                  "DeployRole": "${CodeDeployServiceRole.Arn}",
+                  "AlarmNotificationEmail": "${AlarmNotificationEmail}",
+                  "PermissionsBoundaryArn": "${PermissionsBoundaryArn}"
+                }'
+                TemplateConfiguration: !Sub '${ProjectId}-${StageId}-BuildArtifact::application-infrastructure/template-configuration.json'
+                TemplatePath: !Sub "${ProjectId}-${StageId}-BuildArtifact::application-infrastructure/template-export.yml"
+              InputArtifacts:
+              - Name: !Sub "${ProjectId}-${StageId}-BuildArtifact"
+              OutputArtifacts: []
+              RunOrder: 1
+            - Name: ExecuteChangeSet
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: 1
+              Configuration:
+                ActionMode: CHANGE_SET_EXECUTE
+                ChangeSetName: pipeline-changeset
+                StackName: !Sub "${Prefix}-${ProjectId}-${StageId}-application"
+              InputArtifacts: []
+              OutputArtifacts: []
+              RunOrder: 2
+          - Name: PostDeploy
+            Actions:
+            - Name: PackageExport
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              Configuration:
+                ProjectName: !Sub '${Prefix}-${ProjectId}-${StageId}-PostDeploy'
+              InputArtifacts:
+              - Name: !Sub "${ProjectId}-${StageId}-SourceArtifact"
+              OutputArtifacts:
+              - Name: !Sub "${ProjectId}-${StageId}-PostDeployArtifact"
+              RunOrder: 1
+        - # PostDeploy disabled: Include only Source, Build, Deploy stages
+          - Name: Source
+            Actions:
+            - Name: ApplicationSource
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Provider: CodeCommit
+                Version: 1
+              Configuration:
+                BranchName: !Ref RepositoryBranch
+                PollForSourceChanges: false
+                RepositoryName: !Ref Repository
+              InputArtifacts: []
+              OutputArtifacts:
+              - Name: !Sub "${ProjectId}-${StageId}-SourceArtifact"
+              RunOrder: 1
+          - Name: Build
+            Actions:
+            - Name: PackageExport
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              Configuration:
+                ProjectName: !Sub '${Prefix}-${ProjectId}-${StageId}-Build'
+              InputArtifacts:
+              - Name: !Sub "${ProjectId}-${StageId}-SourceArtifact"
+              OutputArtifacts:
+              - Name: !Sub "${ProjectId}-${StageId}-BuildArtifact"
+              RunOrder: 1
+          - Name: Deploy
+            Actions:
+            - Name: GenerateChangeSet
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: 1
+              Configuration:
+                StackName: !Sub "${Prefix}-${ProjectId}-${StageId}-application"
+                ActionMode: CHANGE_SET_REPLACE
+                Capabilities: CAPABILITY_NAMED_IAM
+                ChangeSetName: pipeline-changeset
+                RoleArn: !GetAtt 'CloudFormationSvcRole.Arn'
+                # These are the parameters that will be set in your AWS CloudFormation stack.
+                ParameterOverrides: !Sub '{
+                  "Prefix": "${Prefix}",
+                  "ProjectId": "${ProjectId}",
+                  "StageId": "${StageId}",
+                  "S3BucketNameOrgPrefix": "${S3BucketNameOrgPrefix}",
+                  "RolePath": "${RolePath}",
+                  "DeployEnvironment": "${DeployEnvironment}",
+                  "ParameterStoreHierarchy": "${ParameterStoreHierarchy}${DeployEnvironment}/${Prefix}-${ProjectId}-${StageId}/",
+                  "DeployRole": "${CodeDeployServiceRole.Arn}",
+                  "AlarmNotificationEmail": "${AlarmNotificationEmail}",
+                  "PermissionsBoundaryArn": "${PermissionsBoundaryArn}"
+                }'
+                TemplateConfiguration: !Sub '${ProjectId}-${StageId}-BuildArtifact::application-infrastructure/template-configuration.json'
+                TemplatePath: !Sub "${ProjectId}-${StageId}-BuildArtifact::application-infrastructure/template-export.yml"
+              InputArtifacts:
+              - Name: !Sub "${ProjectId}-${StageId}-BuildArtifact"
+              OutputArtifacts: []
+              RunOrder: 1
+            - Name: ExecuteChangeSet
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: 1
+              Configuration:
+                ActionMode: CHANGE_SET_EXECUTE
+                ChangeSetName: pipeline-changeset
+                StackName: !Sub "${Prefix}-${ProjectId}-${StageId}-application"
+              InputArtifacts: []
+              OutputArtifacts: []
+              RunOrder: 2
           
   # ---------------------------------------------------------------------------
   # -- Pipeline Notifications --
