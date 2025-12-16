@@ -33,7 +33,8 @@ phases:
       - echo "Running property-based tests..."
       - python -m pytest test_postdeploy_property_based.py -v --tb=short --junit-xml=test-results-property.xml || TEST_FAILED=1
       - echo "Combining test results..."
-      - python -c "
+      - |
+        python -c "
         import xml.etree.ElementTree as ET
         import os
         
@@ -59,7 +60,6 @@ phases:
 
   post_build:
     commands:
-    
       - export S3_HOST_BASE_PATH_UTILITIES="${S3_HOST_BASE_PATH}utilities/v2/"
       - export S3_HOST_BASE_PATH_TEMPLATES="${S3_HOST_BASE_PATH}templates/"
 
