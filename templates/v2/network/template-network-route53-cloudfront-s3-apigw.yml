@@ -324,30 +324,30 @@ Conditions:
       - ''
 
   StaticOriginIsRoot: !And
-    - !Condition HasStaticOrigin
+    - HasStaticOrigin
     - !Equals
       - !Ref PathStatic
       - ''
 
   ApiIsBehindCloudFront: !And 
-    - !Condition HasApiGatewayOrigin
+    - HasApiGatewayOrigin
     - !Equals
       - !Ref DomainForApiGateway
       - ''
 
   HasRouteForApiInCloudFront: !And
-    - !Condition HasRouteForApi
-    - !Condition ApiIsBehindCloudFront
+    - HasRouteForApi
+    - ApiIsBehindCloudFront
 
   # CloudFrontHasRoutes: !Or
-  #   - !Condition HasRouteForStaticOrigin
+  #   - HasRouteForStaticOrigin
   #   - !And
-  #     - !Condition HasRouteForApi
-  #     - !Condition ApiIsBehindCloudFront 
+  #     - HasRouteForApi
+  #     - ApiIsBehindCloudFront 
 
   CreateDistribution: !Or
-    - !Condition HasStaticOrigin
-    - !Condition ApiIsBehindCloudFront
+    - HasStaticOrigin
+    - ApiIsBehindCloudFront
 
   CreateDnsRecordForCloudFront:
     # We require all 3 domain parameters for Route53, but they are optional if Route53 is not needed

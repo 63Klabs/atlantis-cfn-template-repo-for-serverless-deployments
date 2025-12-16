@@ -381,7 +381,10 @@ def test_complex_postdeploy_conditions(enabled: bool):
         # Should include a reference to IsPostDeployEnabled condition
         has_postdeploy_ref = False
         for condition in and_conditions:
-            if isinstance(condition, dict) and '!Condition' in condition:
+            if isinstance(condition, str) and condition == 'IsPostDeployEnabled':
+                has_postdeploy_ref = True
+                break
+            elif isinstance(condition, dict) and '!Condition' in condition:
                 if condition['!Condition'] == 'IsPostDeployEnabled':
                     has_postdeploy_ref = True
                     break
