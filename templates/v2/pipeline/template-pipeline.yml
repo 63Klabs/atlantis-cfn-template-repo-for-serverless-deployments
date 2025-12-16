@@ -4,18 +4,13 @@ Description: "CodePipeline for Automated Deployments from repository - Deployed 
 # Atlantis for AWS SAM Deployments
 # Pipeline Infrastructure Template
 # Author: Chad Kluck - 63klabs.net
-# Version: v2.0.16/2025-06-23
+# Version: v2.0.17/2025-12-16
 
 # Documentation, Issues/Feature Requests, Latest Updates, and Security Reports on GitHub:
 # https://github.com/63klabs/atlantis-cfn-template-repo-for-serverless-deployments/
 
 # Creates an AWS CodePipeline that is triggered when a watched branch
 # receives a new commit. Uses CodeBuild and then CloudFormation to deploy.
-
-# USE WITH:
-# - Application Infrastructure (API Gateway, Event Bridge, Lambda, Step Functions, S3, DynamoDB, etc)
-# - OPTIONAL: Route53 and CloudFront for custom domains 
-
 
 # =============================================================================
 # META DATA
@@ -340,19 +335,17 @@ Conditions:
   # These conditions control when PostDeploy resources are created and the stage is included in the pipeline
   IsPostDeployEnabled: !Equals [!Ref PostDeployStageEnabled, "true"]
   HasPostDeployS3StaticHostBucket: !Not [!Equals [!Ref PostDeployS3StaticHostBucket, ""]]
-  HasPostDeployBuildSpecS3Location: !If
-    - IsPostDeployEnabled
-    - !And 
-      - !Not [!Equals [!Ref PostDeployBuildSpec, ""]]
-      - !Equals [!Select [0, !Split [":", !Ref PostDeployBuildSpec]], "s3"]
-    - !Equals [1, 2]
+  HasPostDeployBuildSpecS3Location: !And 
+    - !Condition IsPostDeployEnabled
+    - !Not [!Equals [!Ref PostDeployBuildSpec, ""]]
+    - !Equals [!Select [0, !Split [":", !Ref PostDeployBuildSpec]], "s3"]
   UseDefaultPostDeployBuildSpecLocation: !Equals [!Ref PostDeployBuildSpec, ""]
   HasManagedPoliciesForPostDeploySvcRole: !Not [!Equals [!Join [",", !Ref PostDeploySvcRoleIncludeManagedPolicyArns], ""]]
 
   HasManagedPoliciesForCodeBuildSvcRole: !Not [!Equals [!Join [",", !Ref CodeBuildSvcRoleIncludeManagedPolicyArns], ""]]
 
   # Combined conditions for resource creation
-  IsPostDeployEnabledAndNotDev: !And [IsNotDevelopment, IsPostDeployEnabled]
+  IsPostDeployEnabledAndNotDev: !And [!Condition IsNotDevelopment, !Condition IsPostDeployEnabled]
 
 # =============================================================================
 # RESOURCES
@@ -729,7 +722,7 @@ Resources:
           # A S3StaticHostBucket if HasS3StaticHostBucket condition is met
           # create a policy statement if HasS3StaticHostBucket condition is met
           - !If
-            - HasS3StaticHostBucket
+            - HasPostDeployS3StaticHostBucket
             - Sid: CopyAssetsToS3HostBucketDuringPostDeploy
               Action:
               - s3:PutObject
@@ -738,8 +731,8 @@ Resources:
               - s3:DeleteObject
               Effect: Allow
               Resource: 
-                - !Sub "arn:aws:s3:::${S3StaticHostBucket}"
-                - !Sub "arn:aws:s3:::${S3StaticHostBucket}/*"
+                - !Sub "arn:aws:s3:::${PostDeployS3StaticHostBucket}"
+                - !Sub "arn:aws:s3:::${PostDeployS3StaticHostBucket}/*"
             - !Ref 'AWS::NoValue'
 
           # Copy and read from a remote bucket containing the buildspec.yml file
@@ -1385,11 +1378,8 @@ Resources:
 
   ProjectPipeline:
     Type: AWS::CodePipeline::Pipeline
-    DependsOn: !If
-      - IsPostDeployEnabled
-      - - CodeBuildProject
-        - PostDeployProject
-      - - CodeBuildProject
+    DependsOn: 
+      - CodeBuildProject
     Condition: IsNotDevelopment
     Properties:
       Name: !Sub '${Prefix}-${ProjectId}-${StageId}-Pipeline'
