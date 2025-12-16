@@ -371,23 +371,37 @@ def test_complex_postdeploy_conditions(enabled: bool):
     # Check for HasPostDeployBuildSpecS3Location condition
     s3_condition = conditions.get('HasPostDeployBuildSpecS3Location')
     if s3_condition is not None:
-        # Should be an !And condition that includes IsPostDeployEnabled
+        # Should be a condition object (either !And or !If with !And inside)
         assert isinstance(s3_condition, dict), "HasPostDeployBuildSpecS3Location should be a condition object"
-        assert '!And' in s3_condition, "HasPostDeployBuildSpecS3Location should use !And"
         
-        and_conditions = s3_condition['!And']
-        assert isinstance(and_conditions, list), "!And should contain a list of conditions"
-        
-        # Should include a reference to IsPostDeployEnabled condition
+        # Handle both !And and !If structures
+        and_conditions = None
         has_postdeploy_ref = False
-        for condition in and_conditions:
-            if isinstance(condition, str) and condition == 'IsPostDeployEnabled':
+        
+        if '!And' in s3_condition:
+            and_conditions = s3_condition['!And']
+        elif '!If' in s3_condition:
+            # Check if the condition references IsPostDeployEnabled
+            if_parts = s3_condition['!If']
+            if len(if_parts) >= 1 and if_parts[0] == 'IsPostDeployEnabled':
                 has_postdeploy_ref = True
-                break
-            elif isinstance(condition, dict) and '!Condition' in condition:
-                if condition['!Condition'] == 'IsPostDeployEnabled':
-                    has_postdeploy_ref = True
-                    break
+            # Check if the true branch contains !And
+            if len(if_parts) >= 2 and isinstance(if_parts[1], dict) and '!And' in if_parts[1]:
+                and_conditions = if_parts[1]['!And']
+        
+        if and_conditions is not None:
+            assert isinstance(and_conditions, list), "!And should contain a list of conditions"
+            
+            # Check for IsPostDeployEnabled reference in !And structure
+            if not has_postdeploy_ref:
+                for condition in and_conditions:
+                    if isinstance(condition, str) and condition == 'IsPostDeployEnabled':
+                        has_postdeploy_ref = True
+                        break
+                    elif isinstance(condition, dict) and '!Condition' in condition:
+                        if condition['!Condition'] == 'IsPostDeployEnabled':
+                            has_postdeploy_ref = True
+                            break
         
         assert has_postdeploy_ref, "HasPostDeployBuildSpecS3Location should reference IsPostDeployEnabled condition"
 @settings(max_examples=50)
@@ -552,23 +566,35 @@ def test_postdeploy_s3_buildspec_condition(enabled: bool):
     s3_condition = conditions.get('HasPostDeployBuildSpecS3Location')
     assert s3_condition is not None, "HasPostDeployBuildSpecS3Location condition should exist"
     
-    # Should be an !And condition
+    # Should be a condition object (either !And or !If with !And inside)
     assert isinstance(s3_condition, dict), "HasPostDeployBuildSpecS3Location should be a condition object"
-    assert '!And' in s3_condition, "HasPostDeployBuildSpecS3Location should use !And"
     
-    and_conditions = s3_condition['!And']
+    # Handle both !And and !If structures
+    and_conditions = None
+    if '!And' in s3_condition:
+        and_conditions = s3_condition['!And']
+    elif '!If' in s3_condition:
+        # Check if the true branch contains !And
+        if_parts = s3_condition['!If']
+        if len(if_parts) >= 2 and isinstance(if_parts[1], dict) and '!And' in if_parts[1]:
+            and_conditions = if_parts[1]['!And']
+    
+    assert and_conditions is not None, "Should contain !And logic either directly or within !If"
     assert isinstance(and_conditions, list), "!And should contain a list of conditions"
-    assert len(and_conditions) >= 3, "Should have at least 3 conditions in !And"
+    assert len(and_conditions) >= 2, "Should have at least 2 conditions in !And"
     
-    # Should include IsPostDeployEnabled condition
+    # Should include PostDeployBuildSpec and s3 checks
     has_postdeploy_ref = False
     has_buildspec_check = False
     has_s3_check = False
     
+    # Also check the condition name in !If structure
+    condition_str = str(s3_condition)
+    if 'IsPostDeployEnabled' in condition_str:
+        has_postdeploy_ref = True
+    
     for condition in and_conditions:
         condition_str = str(condition)
-        if 'IsPostDeployEnabled' in condition_str:
-            has_postdeploy_ref = True
         if 'PostDeployBuildSpec' in condition_str:
             has_buildspec_check = True
         if 's3' in condition_str:

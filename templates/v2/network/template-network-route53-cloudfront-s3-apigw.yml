@@ -313,27 +313,17 @@ Conditions:
       - !Ref ApiGatewayId
       - ''
 
-  HasRouteForStaticOrigin: !Not
-    - !Equals
-      - !Ref PathStatic
-      - ''
+  HasRouteForStaticOrigin: !Not [!Equals [!Ref PathStatic, '']]
 
-  HasRouteForApi: !Not
-    - !Equals
-      - !Ref PathApi
-      - ''
+  HasRouteForApi: !Not [!Equals [!Ref PathApi, '']]
 
   StaticOriginIsRoot: !And
     - HasStaticOrigin
-    - !Equals
-      - !Ref PathStatic
-      - ''
+    - !Equals [!Ref PathStatic, '']
 
   ApiIsBehindCloudFront: !And 
     - HasApiGatewayOrigin
-    - !Equals
-      - !Ref DomainForApiGateway
-      - ''
+    - !Equals [!Ref DomainForApiGateway, '']
 
   HasRouteForApiInCloudFront: !And
     - HasRouteForApi
@@ -349,37 +339,15 @@ Conditions:
     - HasStaticOrigin
     - ApiIsBehindCloudFront
 
-  CreateDnsRecordForCloudFront:
-    # We require all 3 domain parameters for Route53, but they are optional if Route53 is not needed
-    !And
-    - !Not
-      - !Equals
-        - !Ref DomainForCloudFront
-        - ''
-    - !Not
-      - !Equals
-        - !Ref CustomSubdomainCloudFront
-        - ''
-    - !Not
-      - !Equals
-        - !Ref AcmCertificateArnForCloudFront
-        - ''
+  CreateDnsRecordForCloudFront: !And
+    - !Not [!Equals [!Ref DomainForCloudFront, '']]
+    - !Not [!Equals [!Ref CustomSubdomainCloudFront, '']]
+    - !Not [!Equals [!Ref AcmCertificateArnForCloudFront, '']]
 
-  CreateDnsRecordForApiGateway:
-    # We require all 3 domain parameters for Route53, but they are optional if Route53 is not needed
-    !And
-    - !Not
-      - !Equals
-        - !Ref DomainForApiGateway
-        - ''
-    - !Not
-      - !Equals
-        - !Ref CustomSubdomainApiGateway
-        - ''
-    - !Not
-      - !Equals
-        - !Ref AcmCertificateArnForApiGateway
-        - ''
+  CreateDnsRecordForApiGateway: !And
+    - !Not [!Equals [!Ref DomainForApiGateway, '']]
+    - !Not [!Equals [!Ref CustomSubdomainApiGateway, '']]
+    - !Not [!Equals [!Ref AcmCertificateArnForApiGateway, '']]
 
   HasHeadersToForwardToApi: !Not
     - !Equals # Requires string, so we join the list (possibly empty)
