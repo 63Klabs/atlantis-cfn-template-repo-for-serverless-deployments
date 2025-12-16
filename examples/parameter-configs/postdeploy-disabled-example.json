@@ -1,0 +1,74 @@
+{
+  "Parameters": {
+    "Prefix": "startup",
+    "ProjectId": "mvp-app",
+    "StageId": "dev",
+    "S3BucketNameOrgPrefix": "",
+    "RolePath": "/",
+    "PermissionsBoundaryArn": "",
+    "DeployEnvironment": "DEV",
+    "S3ArtifactsBucket": "startup-us-east-1-123456789012-mvp-app-artifacts",
+    "S3StaticHostBucket": "startup-mvp-app-static",
+    "BuildSpec": "buildspec.yml",
+    "PostDeployStageEnabled": "false",
+    "PostDeployS3StaticHostBucket": "",
+    "PostDeployBuildSpec": "buildspec-postdeploy.yml",
+    "ParameterStoreHierarchy": "/",
+    "AlarmNotificationEmail": "dev@startup.com",
+    "CloudFormationSvcRoleIncludeManagedPolicyArns": "",
+    "CodeBuildSvcRoleIncludeManagedPolicyArns": "",
+    "PostDeploySvcRoleIncludeManagedPolicyArns": "",
+    "Repository": "mvp-app-repo",
+    "RepositoryBranch": "main"
+  },
+  "Tags": {
+    "Environment": "Development",
+    "Application": "MVP Application",
+    "Owner": "Development Team",
+    "CostCenter": "Engineering",
+    "Purpose": "Simple Deployment"
+  },
+  "Description": "Example configuration with PostDeploy stage disabled (default behavior)",
+  "UsageNotes": [
+    "This configuration demonstrates the default behavior with PostDeploy disabled.",
+    "The pipeline will have only 3 stages: Source → Build → Deploy.",
+    "No PostDeploy resources (PostDeployServiceRole, PostDeployProject, PostDeployLogGroup)",
+    "will be created, reducing infrastructure costs and complexity.",
+    "This is suitable for simple applications that don't require post-deployment",
+    "validation, testing, or configuration export.",
+    "PostDeploy parameters are still present but ignored when PostDeployStageEnabled is false."
+  ],
+  "PipelineStages": [
+    {
+      "name": "Source",
+      "description": "Retrieves source code from CodeCommit repository"
+    },
+    {
+      "name": "Build", 
+      "description": "Executes buildspec.yml to build and package application"
+    },
+    {
+      "name": "Deploy",
+      "description": "Creates and executes CloudFormation changeset to deploy infrastructure"
+    }
+  ],
+  "ResourcesNotCreated": [
+    "PostDeployServiceRole - IAM role for PostDeploy CodeBuild project",
+    "PostDeployProject - CodeBuild project for post-deployment tasks", 
+    "PostDeployLogGroup - CloudWatch log group for PostDeploy logs"
+  ],
+  "WhenToUse": [
+    "Simple applications without complex post-deployment requirements",
+    "Development environments where quick iteration is more important than validation",
+    "Cost-sensitive deployments where additional resources should be minimized",
+    "Applications that handle all testing and validation in the Build stage",
+    "Proof-of-concept or MVP applications with minimal operational requirements"
+  ],
+  "UpgradePath": [
+    "Change PostDeployStageEnabled to 'true' to enable PostDeploy functionality",
+    "Add appropriate PostDeployBuildSpec file to repository",
+    "Configure PostDeployS3StaticHostBucket if artifact export is needed",
+    "Update PostDeploySvcRoleIncludeManagedPolicyArns if additional permissions required",
+    "Test PostDeploy functionality in development before enabling in production"
+  ]
+}

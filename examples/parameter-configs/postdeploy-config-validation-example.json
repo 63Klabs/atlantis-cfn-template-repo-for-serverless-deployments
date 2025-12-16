@@ -1,0 +1,72 @@
+{
+  "Parameters": {
+    "Prefix": "corp",
+    "ProjectId": "financial-api",
+    "StageId": "prod",
+    "S3BucketNameOrgPrefix": "corp-compliance",
+    "RolePath": "/compliance/",
+    "PermissionsBoundaryArn": "arn:aws:iam::123456789012:policy/ComplianceBoundary",
+    "DeployEnvironment": "PROD",
+    "S3ArtifactsBucket": "corp-us-east-1-123456789012-financial-api-artifacts",
+    "S3StaticHostBucket": "",
+    "BuildSpec": "application-infrastructure/buildspec.yml",
+    "PostDeployStageEnabled": "true",
+    "PostDeployS3StaticHostBucket": "corp-compliance-validation-reports",
+    "PostDeployBuildSpec": "examples/buildspec-postdeploy-config-validation.yml",
+    "ParameterStoreHierarchy": "/corp/financial/",
+    "AlarmNotificationEmail": "compliance@corp.com",
+    "CloudFormationSvcRoleIncludeManagedPolicyArns": "arn:aws:iam::123456789012:policy/FinancialServicesCompliance",
+    "CodeBuildSvcRoleIncludeManagedPolicyArns": "",
+    "PostDeploySvcRoleIncludeManagedPolicyArns": "arn:aws:iam::123456789012:policy/ComplianceValidation",
+    "Repository": "financial-api-repo",
+    "RepositoryBranch": "main"
+  },
+  "Tags": {
+    "Environment": "Production",
+    "Application": "Financial API",
+    "Owner": "Compliance Team",
+    "CostCenter": "Risk Management",
+    "Purpose": "Configuration Validation",
+    "ComplianceFramework": "SOX,PCI-DSS",
+    "DataClassification": "Confidential"
+  },
+  "Description": "Example configuration for PostDeploy configuration and compliance validation",
+  "UsageNotes": [
+    "This configuration enables the PostDeploy stage to perform comprehensive",
+    "configuration validation and compliance checking for production deployments.",
+    "The validation includes CloudFormation stack health, IAM role configuration,",
+    "log group retention policies, security scanning, and compliance reporting.",
+    "In production environment, compliance failures will cause the build to fail,",
+    "ensuring that non-compliant deployments are not allowed to proceed.",
+    "Validation reports are uploaded to S3 for audit trail and compliance documentation."
+  ],
+  "Prerequisites": [
+    "S3 bucket 'corp-compliance-validation-reports' must exist",
+    "Bucket should have appropriate retention and access policies for compliance",
+    "IAM managed policies for compliance validation should be created",
+    "Permissions boundary policy should be configured for production roles",
+    "buildspec-postdeploy-config-validation.yml should be in the repository",
+    "Checkov security scanning tool dependencies should be available"
+  ],
+  "ValidationChecks": {
+    "StackHealth": "Verifies CloudFormation stack is in complete state",
+    "RequiredTags": "Ensures all required governance tags are present",
+    "IAMCompliance": "Validates IAM roles have permissions boundaries and proper paths",
+    "LogRetention": "Checks CloudWatch log groups have appropriate retention policies",
+    "SecurityScanning": "Runs Checkov security scan on deployed template",
+    "EnvironmentSpecific": "Validates production-specific requirements (monitoring, alerting)",
+    "ComplianceReporting": "Generates comprehensive compliance report"
+  },
+  "ComplianceFrameworks": [
+    "SOX (Sarbanes-Oxley Act)",
+    "PCI-DSS (Payment Card Industry Data Security Standard)",
+    "AWS Well-Architected Framework",
+    "Corporate Security Policies"
+  ],
+  "FailureHandling": {
+    "Production": "Build fails on any compliance violations",
+    "NonProduction": "Warnings logged but deployment proceeds",
+    "ReportGeneration": "Detailed compliance report always generated",
+    "AuditTrail": "All validation results uploaded to compliance bucket"
+  }
+}

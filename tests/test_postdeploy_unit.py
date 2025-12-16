@@ -5,43 +5,20 @@ These tests focus on specific examples, edge cases, and error conditions for par
 and resource configuration, complementing the property-based tests.
 """
 
-import yaml
 import pytest
 import re
+import sys
+import os
 from typing import Dict, Any
 
+# Add tests directory to Python path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# Custom YAML loader that handles CloudFormation intrinsic functions
-class CFNLoader(yaml.SafeLoader):
-    """YAML loader that handles CloudFormation intrinsic functions."""
-    pass
-
-
-# Add constructors for CloudFormation intrinsic functions
-def cfn_constructor(loader, node):
-    """Generic constructor for CloudFormation intrinsic functions."""
-    if isinstance(node, yaml.ScalarNode):
-        return {node.tag: loader.construct_scalar(node)}
-    elif isinstance(node, yaml.SequenceNode):
-        return {node.tag: loader.construct_sequence(node)}
-    elif isinstance(node, yaml.MappingNode):
-        return {node.tag: loader.construct_mapping(node)}
-    return {node.tag: None}
-
-
-# Register CloudFormation intrinsic functions
-cfn_tags = ['!Ref', '!GetAtt', '!Sub', '!Join', '!If', '!Not', '!Equals', 
-            '!And', '!Or', '!Select', '!Split', '!Base64', '!Cidr',
-            '!FindInMap', '!GetAZs', '!ImportValue', '!Condition']
-
-for tag in cfn_tags:
-    CFNLoader.add_constructor(tag, cfn_constructor)
-
-
-def load_template(filepath: str) -> Dict[str, Any]:
-    """Load and parse a CloudFormation YAML template."""
-    with open(filepath, 'r') as f:
-        return yaml.load(f, Loader=CFNLoader)
+from cfn_test_utils import (
+    load_template, get_template_section, validate_parameter_constraints,
+    validate_iam_policy_structure, validate_environment_variables,
+    validate_regex_pattern
+)
 
 
 # Load the pipeline template
@@ -57,10 +34,8 @@ class TestParameterValidation:
         Requirements: 5.1
         """
         template = PIPELINE_TEMPLATE
-        parameters = template.get('Parameters', {})
-        buildspec_param = parameters.get('PostDeployBuildSpec')
-        allowed_pattern = buildspec_param.get('AllowedPattern')
-        pattern = re.compile(allowed_pattern)
+        constraints = validate_parameter_constraints(template, 'PostDeployBuildSpec')
+        allowed_pattern = constraints.get('AllowedPattern')
         
         # Test specific valid examples
         valid_paths = [
@@ -71,9 +46,9 @@ class TestParameterValidation:
             '',  # Empty string is allowed (uses default)
         ]
         
-        for path in valid_paths:
-            match = pattern.match(path)
-            assert match is not None, f"Valid buildspec path '{path}' should match pattern"
+        validation_result = validate_regex_pattern(allowed_pattern, valid_paths)
+        assert validation_result['valid_pattern'], f"Pattern should be valid: {validation_result.get('error')}"
+        assert validation_result['match_count'] == len(valid_paths), f"All valid paths should match pattern"
     
     def test_invalid_buildspec_paths_examples(self):
         """
@@ -81,10 +56,8 @@ class TestParameterValidation:
         Requirements: 5.1
         """
         template = PIPELINE_TEMPLATE
-        parameters = template.get('Parameters', {})
-        buildspec_param = parameters.get('PostDeployBuildSpec')
-        allowed_pattern = buildspec_param.get('AllowedPattern')
-        pattern = re.compile(allowed_pattern)
+        constraints = validate_parameter_constraints(template, 'PostDeployBuildSpec')
+        allowed_pattern = constraints.get('AllowedPattern')
         
         # Test specific invalid examples
         invalid_paths = [
@@ -97,9 +70,9 @@ class TestParameterValidation:
             '../buildspec-postdeploy.yml',  # Relative path with ..
         ]
         
-        for path in invalid_paths:
-            match = pattern.match(path)
-            assert match is None, f"Invalid buildspec path '{path}' should not match pattern"
+        validation_result = validate_regex_pattern(allowed_pattern, invalid_paths)
+        assert validation_result['valid_pattern'], f"Pattern should be valid: {validation_result.get('error')}"
+        assert validation_result['match_count'] == 0, f"No invalid paths should match pattern"
     
     def test_valid_s3_uri_examples(self):
         """
@@ -284,7 +257,7 @@ class TestResourceConfiguration:
         Requirements: 4.2, 4.3
         """
         template = PIPELINE_TEMPLATE
-        resources = template.get('Resources', {})
+        resources = get_template_section(template, 'Resources')
         
         postdeploy_role = resources.get('PostDeployServiceRole')
         policies = postdeploy_role.get('Properties', {}).get('Policies', [])
@@ -292,10 +265,12 @@ class TestResourceConfiguration:
         
         main_policy = policies[0]
         policy_doc = main_policy.get('PolicyDocument', {})
-        statements = policy_doc.get('Statement', [])
+        
+        # Use utility to analyze policy structure
+        policy_analysis = validate_iam_policy_structure(policy_doc)
         
         # Test specific permission statements exist
-        statement_sids = [stmt.get('Sid', '') for stmt in statements if isinstance(stmt, dict)]
+        statement_sids = [stmt['sid'] for stmt in policy_analysis['statements'] if stmt['sid']]
         
         expected_sids = [
             'AllowPostDeployToManageItsLogs',
@@ -310,35 +285,15 @@ class TestResourceConfiguration:
         for expected_sid in expected_sids:
             assert expected_sid in statement_sids, f"Should have statement with Sid '{expected_sid}'"
         
-        # Test S3 artifact management statement
-        s3_artifact_stmt = None
-        for stmt in statements:
-            if isinstance(stmt, dict) and stmt.get('Sid') == 'AllowPostDeployToManageItsArtifacts':
-                s3_artifact_stmt = stmt
-                break
+        # Test that we have expected S3 and SSM actions
+        expected_s3_actions = {'s3:Get*', 's3:List*', 's3:PutObject'}
+        expected_ssm_actions = {'ssm:GetParameters', 'ssm:GetParameter', 'ssm:GetParametersByPath'}
         
-        assert s3_artifact_stmt is not None, "Should have S3 artifact management statement"
-        assert s3_artifact_stmt['Effect'] == 'Allow'
+        assert expected_s3_actions.issubset(policy_analysis['actions']), "Should have expected S3 actions"
+        assert expected_ssm_actions.issubset(policy_analysis['actions']), "Should have expected SSM actions"
         
-        actions = s3_artifact_stmt.get('Action', [])
-        expected_actions = ['s3:Get*', 's3:List*', 's3:PutObject']
-        for action in expected_actions:
-            assert action in actions, f"Should have S3 action '{action}'"
-        
-        # Test SSM statement
-        ssm_stmt = None
-        for stmt in statements:
-            if isinstance(stmt, dict) and stmt.get('Sid') == 'SsmAccessDuringPostDeploy':
-                ssm_stmt = stmt
-                break
-        
-        assert ssm_stmt is not None, "Should have SSM statement"
-        assert ssm_stmt['Effect'] == 'Allow'
-        
-        ssm_actions = ssm_stmt.get('Action', [])
-        expected_ssm_actions = ['ssm:GetParameters', 'ssm:GetParameter', 'ssm:GetParametersByPath']
-        for action in expected_ssm_actions:
-            assert action in ssm_actions, f"Should have SSM action '{action}'"
+        # Test that all statements have Allow effect
+        assert policy_analysis['effects'] == {'Allow'}, "All statements should have Allow effect"
     
     def test_postdeploy_project_configuration(self):
         """
@@ -471,33 +426,28 @@ class TestResourceConfiguration:
         Requirements: 4.4
         """
         template = PIPELINE_TEMPLATE
-        resources = template.get('Resources', {})
+        resources = get_template_section(template, 'Resources')
         
         postdeploy_project = resources.get('PostDeployProject')
         env_vars = postdeploy_project.get('Properties', {}).get('Environment', {}).get('EnvironmentVariables', [])
         
+        # Use utility to analyze environment variables
+        env_analysis = validate_environment_variables(env_vars)
+        
         # Test specific environment variable examples
-        env_var_dict = {var['Name']: var['Value'] for var in env_vars}
+        expected_vars = {
+            'AWS_PARTITION', 'AWS_REGION', 'AWS_ACCOUNT', 'PREFIX', 'PROJECT_ID', 
+            'STAGE_ID', 'REPOSITORY', 'REPOSITORY_BRANCH', 'POST_DEPLOY_S3_STATIC_HOST_BUCKET'
+        }
         
-        # Test AWS context variables
-        assert 'AWS_PARTITION' in env_var_dict
-        assert 'AWS_REGION' in env_var_dict
-        assert 'AWS_ACCOUNT' in env_var_dict
-        
-        # Test project context variables
-        assert 'PREFIX' in env_var_dict
-        assert 'PROJECT_ID' in env_var_dict
-        assert 'STAGE_ID' in env_var_dict
-        
-        # Test repository variables
-        assert 'REPOSITORY' in env_var_dict
-        assert 'REPOSITORY_BRANCH' in env_var_dict
-        
-        # Test specific PostDeploy variable
-        assert 'POST_DEPLOY_S3_STATIC_HOST_BUCKET' in env_var_dict
+        assert expected_vars.issubset(env_analysis['variable_names']), "Should have expected environment variables"
         
         # Test NODE_ENV is set to production
-        assert env_var_dict.get('NODE_ENV') == 'production'
+        assert env_analysis['variables'].get('NODE_ENV', {}).get('value') == 'production'
+        
+        # Test that POST_DEPLOY_S3_STATIC_HOST_BUCKET references a parameter
+        postdeploy_s3_var = env_analysis['variables'].get('POST_DEPLOY_S3_STATIC_HOST_BUCKET', {})
+        assert 'PostDeployS3StaticHostBucket' in str(postdeploy_s3_var.get('value', '')), "Should reference PostDeployS3StaticHostBucket parameter"
     
     def test_conditional_s3_buildspec_permissions(self):
         """

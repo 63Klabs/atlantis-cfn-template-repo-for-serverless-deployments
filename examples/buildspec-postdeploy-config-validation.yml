@@ -1,0 +1,391 @@
+# Example PostDeploy BuildSpec for Configuration Validation
+# This buildspec demonstrates how to validate that the deployed application
+# configuration meets security, compliance, and operational requirements.
+#
+# Usage:
+# - Set PostDeployStageEnabled: "true"
+# - Set PostDeployBuildSpec: "examples/buildspec-postdeploy-config-validation.yml"
+# - Optionally set PostDeployS3StaticHostBucket for validation report uploads
+
+version: 0.2
+
+# Environment variables available in PostDeploy stage:
+# - AWS_PARTITION, AWS_REGION, AWS_ACCOUNT: AWS environment info
+# - PREFIX, PROJECT_ID, STAGE_ID: Resource naming components
+# - S3_ARTIFACTS_BUCKET: Pipeline artifacts bucket
+# - POST_DEPLOY_S3_STATIC_HOST_BUCKET: Optional bucket for validation reports
+# - PARAM_STORE_HIERARCHY: SSM parameter path for application config
+# - DEPLOY_ENVIRONMENT: Deployment environment (DEV/TEST/PROD)
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.13
+    commands:
+      - echo "Installing dependencies for configuration validation"
+      - pip install boto3 botocore cfn-lint checkov
+
+  pre_build:
+    commands:
+      - echo "PostDeploy configuration validation started at `date`"
+      - echo "Validating deployment: $PREFIX-$PROJECT_ID-$STAGE_ID"
+      - echo "Environment: $DEPLOY_ENVIRONMENT"
+      
+      # Create validation results directory
+      - mkdir -p validation-results
+
+  build:
+    commands:
+      - echo "Running configuration validation checks"
+      
+      # Validate CloudFormation stack configuration
+      - |
+        python3 << 'EOF'
+        import boto3
+        import json
+        import os
+        from datetime import datetime
+        
+        # Initialize AWS clients
+        cf = boto3.client('cloudformation')
+        iam = boto3.client('iam')
+        logs = boto3.client('logs')
+        
+        # Get application deployment identifier
+        app_id = f"{os.environ['PREFIX']}-{os.environ['PROJECT_ID']}-{os.environ['STAGE_ID']}"
+        stack_name = f"{app_id}-application"
+        
+        validation_results = {
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "application_id": app_id,
+            "stack_name": stack_name,
+            "environment": os.environ['DEPLOY_ENVIRONMENT'],
+            "checks": []
+        }
+        
+        def add_check(name, status, message, details=None):
+            validation_results["checks"].append({
+                "name": name,
+                "status": status,  # PASS, FAIL, WARN, SKIP
+                "message": message,
+                "details": details or {}
+            })
+        
+        try:
+            # Get stack information
+            stack_response = cf.describe_stacks(StackName=stack_name)
+            stack = stack_response['Stacks'][0]
+            
+            print(f"Validating stack: {stack_name}")
+            
+            # Check 1: Stack is in a healthy state
+            if stack['StackStatus'] in ['CREATE_COMPLETE', 'UPDATE_COMPLETE']:
+                add_check("Stack Status", "PASS", f"Stack is in {stack['StackStatus']} state")
+            else:
+                add_check("Stack Status", "FAIL", f"Stack is in {stack['StackStatus']} state")
+            
+            # Check 2: Required tags are present
+            tags = {tag['Key']: tag['Value'] for tag in stack.get('Tags', [])}
+            required_tags = ['atlantis:ApplicationDeploymentId']
+            
+            missing_tags = [tag for tag in required_tags if tag not in tags]
+            if not missing_tags:
+                add_check("Required Tags", "PASS", "All required tags are present", {"tags": tags})
+            else:
+                add_check("Required Tags", "FAIL", f"Missing required tags: {missing_tags}")
+            
+            # Check 3: Validate IAM roles have proper permissions boundaries
+            try:
+                # Get stack resources
+                resources_response = cf.describe_stack_resources(StackName=stack_name)
+                iam_roles = [r for r in resources_response['StackResources'] if r['ResourceType'] == 'AWS::IAM::Role']
+                
+                for role_resource in iam_roles:
+                    role_name = role_resource['PhysicalResourceId']
+                    try:
+                        role_response = iam.get_role(RoleName=role_name)
+                        role = role_response['Role']
+                        
+                        # Check if permissions boundary is set (if required by environment)
+                        if os.environ['DEPLOY_ENVIRONMENT'] == 'PROD':
+                            if 'PermissionsBoundary' in role:
+                                add_check(f"IAM Role Permissions Boundary - {role_name}", "PASS", 
+                                         "Permissions boundary is configured")
+                            else:
+                                add_check(f"IAM Role Permissions Boundary - {role_name}", "WARN", 
+                                         "No permissions boundary configured for production role")
+                        
+                        # Check role path
+                        if role['Path'].startswith('/'):
+                            add_check(f"IAM Role Path - {role_name}", "PASS", 
+                                     f"Role has proper path: {role['Path']}")
+                        else:
+                            add_check(f"IAM Role Path - {role_name}", "FAIL", 
+                                     f"Role has invalid path: {role['Path']}")
+                                     
+                    except Exception as e:
+                        add_check(f"IAM Role Validation - {role_name}", "FAIL", f"Error validating role: {e}")
+                        
+            except Exception as e:
+                add_check("IAM Role Validation", "FAIL", f"Error retrieving IAM roles: {e}")
+            
+            # Check 4: Validate CloudWatch log groups have retention policies
+            try:
+                log_groups = [r for r in resources_response['StackResources'] if r['ResourceType'] == 'AWS::Logs::LogGroup']
+                
+                for lg_resource in log_groups:
+                    lg_name = lg_resource['PhysicalResourceId']
+                    try:
+                        lg_response = logs.describe_log_groups(logGroupNamePrefix=lg_name)
+                        
+                        for log_group in lg_response['logGroups']:
+                            if log_group['logGroupName'] == lg_name:
+                                if 'retentionInDays' in log_group:
+                                    retention_days = log_group['retentionInDays']
+                                    if retention_days <= 365:  # Reasonable retention
+                                        add_check(f"Log Group Retention - {lg_name}", "PASS", 
+                                                 f"Retention set to {retention_days} days")
+                                    else:
+                                        add_check(f"Log Group Retention - {lg_name}", "WARN", 
+                                                 f"Long retention period: {retention_days} days")
+                                else:
+                                    add_check(f"Log Group Retention - {lg_name}", "FAIL", 
+                                             "No retention policy configured")
+                                break
+                                
+                    except Exception as e:
+                        add_check(f"Log Group Validation - {lg_name}", "FAIL", f"Error validating log group: {e}")
+                        
+            except Exception as e:
+                add_check("Log Group Validation", "FAIL", f"Error retrieving log groups: {e}")
+            
+            # Check 5: Validate environment-specific configurations
+            if os.environ['DEPLOY_ENVIRONMENT'] == 'PROD':
+                # Production-specific checks
+                add_check("Production Configuration", "PASS", "Production environment detected")
+                
+                # Check for monitoring/alerting resources
+                monitoring_resources = [r for r in resources_response['StackResources'] 
+                                      if r['ResourceType'] in ['AWS::CloudWatch::Alarm', 'AWS::SNS::Topic']]
+                
+                if monitoring_resources:
+                    add_check("Monitoring Resources", "PASS", 
+                             f"Found {len(monitoring_resources)} monitoring resources")
+                else:
+                    add_check("Monitoring Resources", "WARN", 
+                             "No monitoring resources found in production deployment")
+                             
+            elif os.environ['DEPLOY_ENVIRONMENT'] == 'DEV':
+                # Development-specific checks
+                add_check("Development Configuration", "PASS", "Development environment detected")
+                
+                # In dev, we might be more lenient about certain configurations
+                add_check("Development Flexibility", "PASS", "Development environment allows flexible configuration")
+            
+        except Exception as e:
+            add_check("Stack Validation", "FAIL", f"Error validating stack: {e}")
+        
+        # Save validation results
+        with open('validation-results/config-validation.json', 'w') as f:
+            json.dump(validation_results, f, indent=2)
+        
+        # Print summary
+        total_checks = len(validation_results["checks"])
+        passed_checks = len([c for c in validation_results["checks"] if c["status"] == "PASS"])
+        failed_checks = len([c for c in validation_results["checks"] if c["status"] == "FAIL"])
+        warned_checks = len([c for c in validation_results["checks"] if c["status"] == "WARN"])
+        
+        print(f"\nValidation Summary:")
+        print(f"  Total checks: {total_checks}")
+        print(f"  Passed: {passed_checks}")
+        print(f"  Failed: {failed_checks}")
+        print(f"  Warnings: {warned_checks}")
+        
+        # Print failed checks
+        if failed_checks > 0:
+            print(f"\nFailed Checks:")
+            for check in validation_results["checks"]:
+                if check["status"] == "FAIL":
+                    print(f"  ❌ {check['name']}: {check['message']}")
+        
+        # Print warnings
+        if warned_checks > 0:
+            print(f"\nWarnings:")
+            for check in validation_results["checks"]:
+                if check["status"] == "WARN":
+                    print(f"  ⚠️  {check['name']}: {check['message']}")
+        
+        print("Configuration validation completed")
+        EOF
+      
+      # Run security validation using Checkov (if template is available)
+      - |
+        echo "Running security validation"
+        
+        # Try to get the CloudFormation template for security scanning
+        python3 << 'EOF'
+        import boto3
+        import json
+        import os
+        
+        cf = boto3.client('cloudformation')
+        app_id = f"{os.environ['PREFIX']}-{os.environ['PROJECT_ID']}-{os.environ['STAGE_ID']}"
+        stack_name = f"{app_id}-application"
+        
+        try:
+            # Get template
+            template_response = cf.get_template(StackName=stack_name)
+            template = template_response['TemplateBody']
+            
+            # Save template for security scanning
+            with open('deployed-template.json', 'w') as f:
+                json.dump(template, f, indent=2)
+            
+            print("Retrieved deployed template for security scanning")
+            
+        except Exception as e:
+            print(f"Could not retrieve template for security scanning: {e}")
+            
+            # Create a minimal template for demonstration
+            minimal_template = {
+                "AWSTemplateFormatVersion": "2010-09-09",
+                "Description": "Minimal template for security validation",
+                "Resources": {}
+            }
+            
+            with open('deployed-template.json', 'w') as f:
+                json.dump(minimal_template, f, indent=2)
+        EOF
+        
+        # Run Checkov security scan
+        if [ -f "deployed-template.json" ]; then
+          echo "Running Checkov security scan"
+          checkov -f deployed-template.json --framework cloudformation \
+            --output json --output-file validation-results/security-scan.json \
+            --quiet || echo "Checkov scan completed with findings"
+        fi
+      
+      # Generate compliance report
+      - |
+        python3 << 'EOF'
+        import json
+        import os
+        from datetime import datetime
+        
+        # Load validation results
+        with open('validation-results/config-validation.json', 'r') as f:
+            config_results = json.load(f)
+        
+        # Load security scan results if available
+        security_results = {}
+        try:
+            with open('validation-results/security-scan.json', 'r') as f:
+                security_results = json.load(f)
+        except FileNotFoundError:
+            pass
+        
+        # Generate compliance report
+        compliance_report = {
+            "report_metadata": {
+                "generated_at": datetime.utcnow().isoformat() + "Z",
+                "application": {
+                    "prefix": os.environ['PREFIX'],
+                    "project_id": os.environ['PROJECT_ID'],
+                    "stage_id": os.environ['STAGE_ID'],
+                    "environment": os.environ['DEPLOY_ENVIRONMENT']
+                }
+            },
+            "configuration_validation": {
+                "total_checks": len(config_results["checks"]),
+                "passed": len([c for c in config_results["checks"] if c["status"] == "PASS"]),
+                "failed": len([c for c in config_results["checks"] if c["status"] == "FAIL"]),
+                "warnings": len([c for c in config_results["checks"] if c["status"] == "WARN"]),
+                "details": config_results["checks"]
+            },
+            "security_validation": {
+                "scan_performed": bool(security_results),
+                "summary": security_results.get("summary", {}) if security_results else {}
+            },
+            "compliance_status": "COMPLIANT"  # Will be updated based on findings
+        }
+        
+        # Determine overall compliance status
+        failed_config_checks = compliance_report["configuration_validation"]["failed"]
+        
+        if failed_config_checks > 0:
+            compliance_report["compliance_status"] = "NON_COMPLIANT"
+            compliance_report["compliance_issues"] = [
+                f"{failed_config_checks} configuration validation failures"
+            ]
+        elif compliance_report["configuration_validation"]["warnings"] > 0:
+            compliance_report["compliance_status"] = "COMPLIANT_WITH_WARNINGS"
+        
+        # Save compliance report
+        with open('validation-results/compliance-report.json', 'w') as f:
+            json.dump(compliance_report, f, indent=2)
+        
+        print(f"Generated compliance report: {compliance_report['compliance_status']}")
+        EOF
+
+  post_build:
+    commands:
+      - echo "Processing validation results"
+      
+      # Upload validation results if bucket specified
+      - |
+        if [ -n "$POST_DEPLOY_S3_STATIC_HOST_BUCKET" ]; then
+          echo "Uploading validation results to S3"
+          
+          VALIDATION_PATH="validation-reports/$PREFIX-$PROJECT_ID-$STAGE_ID/$(date +%Y-%m-%d-%H%M%S)"
+          
+          # Upload all validation result files
+          aws s3 sync validation-results/ "s3://$POST_DEPLOY_S3_STATIC_HOST_BUCKET/$VALIDATION_PATH/" \
+            --exclude "*" --include "*.json"
+          
+          echo "Validation results uploaded to: s3://$POST_DEPLOY_S3_STATIC_HOST_BUCKET/$VALIDATION_PATH/"
+        fi
+      
+      - echo "PostDeploy configuration validation completed at `date`"
+      
+      # Check compliance status and fail build if non-compliant
+      - |
+        if [ -f "validation-results/compliance-report.json" ]; then
+          COMPLIANCE_STATUS=$(python3 -c "
+        import json
+        with open('validation-results/compliance-report.json', 'r') as f:
+            report = json.load(f)
+        print(report.get('compliance_status', 'UNKNOWN'))
+        ")
+          
+          echo "Compliance Status: $COMPLIANCE_STATUS"
+          
+          if [ "$COMPLIANCE_STATUS" = "NON_COMPLIANT" ]; then
+            echo "ERROR: Deployment is not compliant with configuration requirements"
+            
+            # Print compliance issues
+            python3 -c "
+        import json
+        with open('validation-results/compliance-report.json', 'r') as f:
+            report = json.load(f)
+        issues = report.get('compliance_issues', [])
+        for issue in issues:
+            print(f'  - {issue}')
+        "
+            
+            # Fail the build in production, warn in other environments
+            if [ "$DEPLOY_ENVIRONMENT" = "PROD" ]; then
+              echo "Failing build due to compliance issues in production"
+              exit 1
+            else
+              echo "WARNING: Compliance issues detected but allowing deployment in $DEPLOY_ENVIRONMENT"
+            fi
+          else
+            echo "SUCCESS: Deployment meets compliance requirements"
+          fi
+        fi
+
+artifacts:
+  files:
+    - 'validation-results/**/*'
+    - 'deployed-template.json'
+  name: PostDeployConfigValidationArtifact

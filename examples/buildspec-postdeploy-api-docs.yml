@@ -1,0 +1,182 @@
+# Example PostDeploy BuildSpec for API Documentation Export
+# This buildspec demonstrates how to export OpenAPI specifications from API Gateway
+# after deployment and upload them to an S3 bucket for static documentation generation.
+#
+# Usage:
+# - Set PostDeployStageEnabled: "true"
+# - Set PostDeployS3StaticHostBucket: "my-docs-bucket"
+# - Set PostDeployBuildSpec: "examples/buildspec-postdeploy-api-docs.yml"
+
+version: 0.2
+
+# Environment variables available in PostDeploy stage:
+# - AWS_PARTITION, AWS_REGION, AWS_ACCOUNT: AWS environment info
+# - PREFIX, PROJECT_ID, STAGE_ID: Resource naming components
+# - S3_ARTIFACTS_BUCKET: Pipeline artifacts bucket
+# - POST_DEPLOY_S3_STATIC_HOST_BUCKET: Target bucket for documentation
+# - PARAM_STORE_HIERARCHY: SSM parameter path for application config
+# - DEPLOY_ENVIRONMENT: Deployment environment (DEV/TEST/PROD)
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.13
+      nodejs: 22
+    commands:
+      - echo "Installing dependencies for API documentation export"
+      - pip install boto3 requests pyyaml
+      - npm install -g @apidevtools/swagger-parser
+
+  pre_build:
+    commands:
+      - echo "PostDeploy phase started at `date`"
+      - echo "Exporting API documentation for $PREFIX-$PROJECT_ID-$STAGE_ID"
+      - echo "Target documentation bucket: $POST_DEPLOY_S3_STATIC_HOST_BUCKET"
+      
+      # Discover deployed API Gateway REST APIs
+      - |
+        python3 << 'EOF'
+        import boto3
+        import json
+        import os
+        
+        # Initialize AWS clients
+        apigateway = boto3.client('apigateway')
+        s3 = boto3.client('s3')
+        
+        # Get application deployment identifier
+        app_id = f"{os.environ['PREFIX']}-{os.environ['PROJECT_ID']}-{os.environ['STAGE_ID']}"
+        
+        try:
+            # List REST APIs and find ones tagged with our application
+            apis = apigateway.get_rest_apis()
+            
+            for api in apis['items']:
+                api_id = api['id']
+                api_name = api.get('name', '')
+                
+                # Check if this API belongs to our application
+                if app_id in api_name:
+                    print(f"Found API: {api_name} (ID: {api_id})")
+                    
+                    # Get API stages
+                    stages = apigateway.get_stages(restApiId=api_id)
+                    
+                    for stage in stages['item']:
+                        stage_name = stage['stageName']
+                        print(f"Processing stage: {stage_name}")
+                        
+                        # Export OpenAPI specification
+                        try:
+                            export_response = apigateway.get_export(
+                                restApiId=api_id,
+                                stageName=stage_name,
+                                exportType='oas30',
+                                parameters={
+                                    'extensions': 'integrations,authorizers,documentation'
+                                }
+                            )
+                            
+                            # Save to file
+                            filename = f"{api_name}-{stage_name}-openapi.json"
+                            with open(filename, 'wb') as f:
+                                f.write(export_response['body'].read())
+                            
+                            print(f"Exported OpenAPI spec to {filename}")
+                            
+                        except Exception as e:
+                            print(f"Error exporting API {api_id} stage {stage_name}: {e}")
+                            
+        except Exception as e:
+            print(f"Error discovering APIs: {e}")
+        EOF
+
+  build:
+    commands:
+      - echo "Processing and validating exported API specifications"
+      
+      # Validate OpenAPI specifications
+      - |
+        for spec_file in *-openapi.json; do
+          if [ -f "$spec_file" ]; then
+            echo "Validating $spec_file"
+            swagger-parser validate "$spec_file" || echo "Warning: Validation issues in $spec_file"
+            
+            # Pretty-print the JSON for better readability
+            python3 -m json.tool "$spec_file" > "${spec_file%.json}-formatted.json"
+          fi
+        done
+      
+      # Generate documentation metadata
+      - |
+        python3 << 'EOF'
+        import json
+        import os
+        from datetime import datetime
+        
+        metadata = {
+            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "application": {
+                "prefix": os.environ['PREFIX'],
+                "project_id": os.environ['PROJECT_ID'],
+                "stage_id": os.environ['STAGE_ID'],
+                "environment": os.environ['DEPLOY_ENVIRONMENT']
+            },
+            "specifications": []
+        }
+        
+        # List all exported specifications
+        import glob
+        for spec_file in glob.glob("*-openapi.json"):
+            with open(spec_file, 'r') as f:
+                spec = json.load(f)
+                
+            metadata["specifications"].append({
+                "filename": spec_file,
+                "title": spec.get("info", {}).get("title", "Unknown API"),
+                "version": spec.get("info", {}).get("version", "1.0.0"),
+                "description": spec.get("info", {}).get("description", "")
+            })
+        
+        # Save metadata
+        with open("api-docs-metadata.json", 'w') as f:
+            json.dump(metadata, f, indent=2)
+        
+        print("Generated documentation metadata")
+        EOF
+
+  post_build:
+    commands:
+      - echo "Uploading API documentation to S3"
+      
+      # Upload to documentation bucket if specified
+      - |
+        if [ -n "$POST_DEPLOY_S3_STATIC_HOST_BUCKET" ]; then
+          echo "Uploading to bucket: $POST_DEPLOY_S3_STATIC_HOST_BUCKET"
+          
+          # Create documentation path
+          DOC_PATH="api-docs/$PREFIX-$PROJECT_ID-$STAGE_ID/$(date +%Y-%m-%d)"
+          
+          # Upload all OpenAPI specifications
+          for spec_file in *-openapi*.json; do
+            if [ -f "$spec_file" ]; then
+              aws s3 cp "$spec_file" "s3://$POST_DEPLOY_S3_STATIC_HOST_BUCKET/$DOC_PATH/$spec_file"
+              echo "Uploaded $spec_file"
+            fi
+          done
+          
+          # Upload metadata
+          aws s3 cp "api-docs-metadata.json" "s3://$POST_DEPLOY_S3_STATIC_HOST_BUCKET/$DOC_PATH/metadata.json"
+          
+          echo "Documentation uploaded to: s3://$POST_DEPLOY_S3_STATIC_HOST_BUCKET/$DOC_PATH/"
+        else
+          echo "No documentation bucket specified, skipping upload"
+        fi
+      
+      - echo "PostDeploy API documentation export completed at `date`"
+
+artifacts:
+  files:
+    - '*-openapi*.json'
+    - 'api-docs-metadata.json'
+  name: PostDeployApiDocsArtifact

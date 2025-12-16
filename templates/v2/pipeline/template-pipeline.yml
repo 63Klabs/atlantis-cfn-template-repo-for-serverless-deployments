@@ -165,27 +165,66 @@ Parameters:
 
   # ---------------------------------------------------------------------------
   # Post Deployment Environment
+  # 
+  # The PostDeploy stage is an optional final stage that runs after the main deployment.
+  # It's designed for tasks that require the application infrastructure to be deployed first,
+  # such as:
+  # - Integration tests against the deployed application
+  # - Configuration validation and health checks
+  # - Exporting configurations (e.g., OpenAPI specs from API Gateway)
+  # - Post-deployment data migration or setup tasks
+  #
+  # CONDITIONAL LOGIC:
+  # - When PostDeployStageEnabled="true": Creates PostDeploy resources and includes stage in pipeline
+  # - When PostDeployStageEnabled="false": No PostDeploy resources are created, stage is excluded
+  # - All PostDeploy resources use the "IsPostDeployEnabled" condition for conditional creation
+  #
+  # RESOURCE DEPENDENCIES:
+  # - PostDeployServiceRole: IAM role with similar permissions to CodeBuildServiceRole
+  # - PostDeployProject: CodeBuild project with same compute environment as Build stage
+  # - PostDeployLogGroup: CloudWatch log group with 90-day retention policy
+  # - Pipeline includes PostDeploy stage only when enabled
+  #
+  # USAGE PATTERNS:
+  # 1. API Documentation Export:
+  #    - PostDeployStageEnabled: "true"
+  #    - PostDeployS3StaticHostBucket: "my-docs-bucket"
+  #    - buildspec-postdeploy.yml exports OpenAPI specs from deployed API Gateway
+  #
+  # 2. Integration Testing:
+  #    - PostDeployStageEnabled: "true"
+  #    - buildspec-postdeploy.yml runs integration tests against deployed endpoints
+  #    - Uses same environment variables as Build stage for consistency
+  #
+  # 3. Configuration Validation:
+  #    - PostDeployStageEnabled: "true"
+  #    - buildspec-postdeploy.yml validates deployed resources meet requirements
+  #    - Can access SSM parameters and deployed resources for verification
+  #
+  # 4. Disabled PostDeploy (default):
+  #    - PostDeployStageEnabled: "false"
+  #    - No PostDeploy resources created, pipeline has only 3 stages
 
   PostDeployStageEnabled:
     Type: String
-    Description: "After deployment, create a final stage to run integration tests, configuration checks, or export configurations (such as export OpenAPI specifications from API Gateway to an external bucket for Static documentation generation). This should only be used for tasks that require a deployment first. Pre-deploy tasks should be done in the Build stage."
+    Description: "Controls whether the PostDeploy stage is created and included in the pipeline. When enabled, creates a final stage to run integration tests, configuration checks, or export configurations (such as export OpenAPI specifications from API Gateway to an external bucket for static documentation generation). This should only be used for tasks that require a deployment first. Pre-deploy tasks should be done in the Build stage. Setting to 'true' creates PostDeployServiceRole, PostDeployProject, PostDeployLogGroup, and adds the PostDeploy stage to the pipeline."
     Default: "false"
     AllowedValues: ["true", "false"]
     ConstraintDescription: "Must specify true or false."
 
   PostDeployS3StaticHostBucket:
     Type: String
-    Description: "An already existing S3 bucket name the deploy stage will copy files to. Passed as S3_STATIC_HOST_BUCKET to CodeBuild. Can be left blank if CodeBuild will programmatically construct the bucket name, or doesn't need a S3_STATIC_HOST_BUCKET value. Used primarily to store artifacts that will be picked up by another process such as static API specification documentation."
+    Description: "An already existing S3 bucket name the PostDeploy stage will copy files to. Passed as POST_DEPLOY_S3_STATIC_HOST_BUCKET environment variable to the PostDeploy CodeBuild project. Can be left blank if CodeBuild will programmatically construct the bucket name, or doesn't need this environment variable. Used primarily to store artifacts that will be picked up by another process such as static API specification documentation or exported configuration files."
     Default: ""
     AllowedPattern: "^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$|^$"
     ConstraintDescription: "May only contain alphanumeric characters, dashes, and must begin and end with a letter or number."
 
   PostDeployBuildSpec:
     Type: String
-    Description: "The local or S3 URI of the buildspec-postdeploy.yml file. For example, 'buildspec-postdeploy.yml', 'application-infrastructure/buildspec-postdeploy.yml' or 's3://mybucket/buildspec-postdeploy.yml'. Best practice is to have a single buildspec-postdeploy file for all deployments. This option exists if you cannot store your buildspec-postdeploy file with your source code OR wish to use a central buildspec-postdeploy for a group of deployments. This is not for managing multiple buildspec-postdeploy on a single repo. Default is buildspec-postdeploy.yml, and blank will use the default buildspec-postdeploy.yml in the application-infrastructure directory of the repository. If S3 is the source: Though Source.BuildSpec uses an ARN for S3 locations, an S3 url is requested to make it easier to parse for permissions and other uses. Since postdeploy uses CodeBuild, it uses the same format as buildspec."
+    Description: "The local or S3 URI of the buildspec file for the PostDeploy stage. For example, 'buildspec-postdeploy.yml', 'application-infrastructure/buildspec-postdeploy.yml' or 's3://mybucket/buildspec-postdeploy.yml'. Best practice is to have a single buildspec-postdeploy file for all deployments. This option exists if you cannot store your buildspec-postdeploy file with your source code OR wish to use a central buildspec-postdeploy for a group of deployments. Default is 'application-infrastructure/buildspec-postdeploy.yml', and blank will use the default buildspec-postdeploy.yml in the application-infrastructure directory of the repository. When using S3: Though Source.BuildSpec uses an ARN for S3 locations, an S3 URL is requested to make it easier to parse for IAM permissions and other uses."
     Default: "application-infrastructure/buildspec-postdeploy.yml"
     AllowedPattern: "^s3:\\/\\/[a-zA-Z0-9][a-zA-Z0-9\\-]{1,61}[a-zA-Z0-9]\\/.*$|^[a-zA-Z0-9_\\-\\/]*(buildspec-postdeploy\\.yml)$|^$"
-    ConstraintDescription: "Must be a valid S3 URI or a local path ending with 'postdeploy-spec.yml'. For example, 'postdeploy-spec.yml', 'application-infrastructure/buildspec.yml' or 's3://mybucket/buildspec.yml'. May not be empty."
+    ConstraintDescription: "Must be a valid S3 URI or a local path ending with 'buildspec-postdeploy.yml'. For example, 'buildspec-postdeploy.yml', 'application-infrastructure/buildspec-postdeploy.yml' or 's3://mybucket/buildspec-postdeploy.yml'. May not be empty."
 
   # ---------------------------------------------------------------------------
   # External Resources and Alarm Notifications
@@ -297,6 +336,8 @@ Conditions:
   UseDefaultBuildSpecLocation: !Equals [!Ref BuildSpec, ""]
   HasManagedPoliciesForCloudFormationSvcRole: !Not [!Equals [!Join [",", !Ref CloudFormationSvcRoleIncludeManagedPolicyArns], ""]]
 
+  # PostDeploy Conditional Logic
+  # These conditions control when PostDeploy resources are created and the stage is included in the pipeline
   IsPostDeployEnabled: !Equals [!Ref PostDeployStageEnabled, "true"]
   HasPostDeployS3StaticHostBucket: !Not [!Equals [!Ref PostDeployS3StaticHostBucket, ""]]
   HasPostDeployBuildSpecS3Location: !And 
@@ -571,7 +612,18 @@ Resources:
 
             - !Ref 'AWS::NoValue'
 
-  # -- CodeBuildPostDeploy Service Role --
+  # -- PostDeploy Service Role --
+  # 
+  # CONDITIONAL RESOURCE: Only created when PostDeployStageEnabled="true"
+  # This IAM role provides the PostDeploy CodeBuild project with permissions to:
+  # - Manage its CloudWatch logs
+  # - Access S3 artifacts bucket for input/output artifacts
+  # - Access SSM Parameter Store for application configuration
+  # - Copy assets to various S3 buckets (similar to Build stage permissions)
+  # - Access S3 buildspec file when using remote buildspec location
+  #
+  # The permissions mirror the CodeBuildServiceRole to ensure consistent capabilities
+  # between Build and PostDeploy stages.
 
   PostDeployServiceRole:
     Type: AWS::IAM::Role
@@ -579,7 +631,7 @@ Resources:
     Properties:
       Path: !Ref RolePath
       RoleName: !Sub "${Prefix}-Worker-${ProjectId}-${StageId}-PostDeployServiceRole"
-      Description: "Service Role to access resources during the application infrastructure post deploy phase of AWS CodePipeline"
+      Description: "Service Role to access resources during the application infrastructure PostDeploy phase of AWS CodePipeline. Only created when PostDeployStageEnabled is true. Provides similar permissions to CodeBuildServiceRole for consistent execution environment."
       PermissionsBoundary: !If [HasPermissionsBoundaryArn, !Ref PermissionsBoundaryArn, !Ref 'AWS::NoValue' ]
       ManagedPolicyArns: !If [HasManagedPoliciesForPostDeploySvcRole, !Ref PostDeploySvcRoleIncludeManagedPolicyArns, !Ref 'AWS::NoValue' ]
       AssumeRolePolicyDocument:
@@ -1187,16 +1239,32 @@ Resources:
       RetentionInDays: 90 # Set to your own retention policy - how long do you want to keep build logs?
 
 
-  # -- CodeBuild Project --
+  # -- PostDeploy CodeBuild Project --
+  #
+  # CONDITIONAL RESOURCE: Only created when PostDeployStageEnabled="true"
+  # This CodeBuild project runs post-deployment tasks such as:
+  # - Integration tests against the deployed application
+  # - Configuration validation and health checks  
+  # - Exporting configurations (e.g., OpenAPI specs from API Gateway)
+  # - Post-deployment data migration or setup tasks
+  #
+  # CONFIGURATION CONSISTENCY:
+  # - Uses same compute environment as Build stage (BUILD_GENERAL1_SMALL, LINUX_CONTAINER)
+  # - Uses same container image as Build stage for consistency
+  # - Receives same core environment variables as Build stage
+  # - Additional POST_DEPLOY_S3_STATIC_HOST_BUCKET environment variable for PostDeploy-specific tasks
+  #
+  # BUILDSPEC HANDLING:
+  # - Supports local buildspec files (default: buildspec-postdeploy.yml)
+  # - Supports S3-hosted buildspec files with automatic IAM permissions
+  # - Uses conditional logic to determine buildspec source and format
 
   PostDeployProject:
     Type: AWS::CodeBuild::Project
-    # DependsOn:
-    # - CodeBuildServiceRole
     Condition: !And [IsNotDevelopment, IsPostDeployEnabled]
     Properties:
       Name: !Sub '${Prefix}-${ProjectId}-${StageId}-PostDeploy'
-      Description: !Sub "PostDeploy using CodeBuild Project for ${Prefix}-${ProjectId}-${StageId}"
+      Description: !Sub "PostDeploy CodeBuild Project for ${Prefix}-${ProjectId}-${StageId}. Runs post-deployment tasks such as integration tests, configuration validation, and artifact export. Only created when PostDeployStageEnabled is true."
       ServiceRole: !GetAtt 'PostDeployServiceRole.Arn'
       Artifacts:
         Packaging: ZIP
@@ -1267,8 +1335,12 @@ Resources:
             - !Ref PostDeployBuildSpec
 
   # ---------------------------------------------------------------------------
-  # -- Log Group for PostDeploy CodeBuild Project --
-  # -- (Just so we can add a retention policy)
+  # -- PostDeploy Log Group --
+  # 
+  # CONDITIONAL RESOURCE: Only created when PostDeployStageEnabled="true"
+  # Creates a dedicated CloudWatch log group for PostDeploy CodeBuild project logs.
+  # Provides log retention policy to manage storage costs and compliance requirements.
+  # Matches the retention policy of the main Build stage for consistency.
 
   PostDeployLogGroup:
     Type: AWS::Logs::LogGroup
@@ -1277,24 +1349,36 @@ Resources:
     UpdateReplacePolicy: Retain
     Properties:
       LogGroupName: !Sub "/aws/codebuild/${Prefix}-${ProjectId}-${StageId}-PostDeploy"
-      RetentionInDays: 90 # Set to your own retention policy - how long do you want to keep build logs?
+      RetentionInDays: 90 # Matches Build stage retention policy - adjust based on your log retention requirements
 
   # ---------------------------------------------------------------------------
   # -- ProjectPipeline --
-  # Using the resources defined above, the pipeline and it's parts is what 
-  # moves things along
-
-  # This pipeline contains three Stages: Source, Build, and Deploy.
-  # - Source stage contains a single action that picks up changes from your repository.
-  # - Build stage executes your AWS CodeBuild project.
-  # - Deploy stage contains two actions:
-  #   - The first action either creates a new stack / changeset containing your runtime resources.
-  #   - The second action executes the changeset made in the previous action.
+  # 
+  # CONDITIONAL PIPELINE STRUCTURE:
+  # The pipeline structure changes based on the PostDeployStageEnabled parameter:
+  # 
+  # When PostDeployStageEnabled="false" (default):
+  # - Source → Build → Deploy (3 stages)
+  # 
+  # When PostDeployStageEnabled="true":
+  # - Source → Build → Deploy → PostDeploy (4 stages)
+  # 
+  # STAGE DESCRIPTIONS:
+  # - Source: Retrieves code from CodeCommit repository when branch changes are detected
+  # - Build: Executes buildspec.yml to build, test, and package the application
+  # - Deploy: Creates and executes CloudFormation changeset to deploy application infrastructure
+  # - PostDeploy (conditional): Executes buildspec-postdeploy.yml for post-deployment tasks
+  #
+  # CONDITIONAL DEPENDENCIES:
+  # - When PostDeploy enabled: Pipeline depends on both CodeBuildProject and PostDeployProject
+  # - When PostDeploy disabled: Pipeline depends only on CodeBuildProject
+  # 
+  # ARTIFACT FLOW:
+  # - SourceArtifact: Passed from Source to Build and PostDeploy stages
+  # - BuildArtifact: Passed from Build to Deploy stage
+  # - PostDeployArtifact: Output from PostDeploy stage (when enabled)
 
   ProjectPipeline:
-    # The pipeline should only be created once all the resources it links to have been created.
-    # This includes the AWS CodePipeline service role, the artifact bucket, the AWS CodeBuild build projectTemplateId,
-    # and the role it will pass to AWS CloudFormation to create stacks.
     Type: AWS::CodePipeline::Pipeline
     DependsOn: !If
       - IsPostDeployEnabled
@@ -1310,7 +1394,7 @@ Resources:
       RoleArn: !GetAtt 'CodePipelineServiceRole.Arn'
       Stages: !If
         - IsPostDeployEnabled
-        - # PostDeploy enabled: Include all stages (Source, Build, Deploy, PostDeploy)
+        - # CONDITIONAL PIPELINE: PostDeploy enabled - Include all stages (Source, Build, Deploy, PostDeploy)
           - Name: Source
             Actions:
             - Name: ApplicationSource
@@ -1403,7 +1487,7 @@ Resources:
               OutputArtifacts:
               - Name: !Sub "${ProjectId}-${StageId}-PostDeployArtifact"
               RunOrder: 1
-        - # PostDeploy disabled: Include only Source, Build, Deploy stages
+        - # CONDITIONAL PIPELINE: PostDeploy disabled - Include only Source, Build, Deploy stages
           - Name: Source
             Actions:
             - Name: ApplicationSource

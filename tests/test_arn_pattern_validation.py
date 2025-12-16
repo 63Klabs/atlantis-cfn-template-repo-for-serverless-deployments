@@ -48,7 +48,13 @@ def valid_arns(draw):
     account_id = draw(valid_account_ids)
     resource_name = draw(valid_resource_names)
     
-    return f"arn:aws:{service}:{region}:{account_id}:{resource_type}/{resource_name}"
+    # Use the correct separator based on the pattern: function: for lambda, / for others
+    if service == 'lambda':
+        separator = ':'
+    else:
+        separator = '/'
+    
+    return f"arn:aws:{service}:{region}:{account_id}:{resource_type}{separator}{resource_name}"
 
 
 @st.composite
@@ -94,12 +100,21 @@ def invalid_arns(draw):
         return f"arn:aws:{service}:{region}:{account_id}:invalid-type/{resource_name}"
     
     elif invalid_type == 'wrong_format':
-        # Wrong separator (using : instead of /)
+        # Wrong separator (using / for lambda instead of :, or : for others instead of /)
         service, resource_type = draw(st.sampled_from(service_configs))
         region = draw(valid_regions)
         account_id = draw(valid_account_ids)
         resource_name = draw(valid_resource_names)
-        return f"arn:aws:{service}:{region}:{account_id}:{resource_type}:{resource_name}"
+        
+        # Use wrong separator based on service
+        if service == 'lambda':
+            # Lambda should use :, so we'll use / (wrong)
+            separator = '/'
+        else:
+            # Others should use /, so we'll use : (wrong)
+            separator = ':'
+        
+        return f"arn:aws:{service}:{region}:{account_id}:{resource_type}{separator}{resource_name}"
     
     else:  # missing_parts
         # Missing parts of the ARN

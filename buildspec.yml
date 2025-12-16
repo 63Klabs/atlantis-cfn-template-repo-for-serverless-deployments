@@ -13,8 +13,10 @@ phases:
   install:
     runtime-versions:
       nodejs: latest
+      python: latest
     commands:
       - pip install --upgrade awscli boto3
+      - pip install -r tests/requirements.txt
 
   pre_build:
     commands:
@@ -24,6 +26,36 @@ phases:
   build:
     commands:
       - echo "Build phase started at $(date)"
+      - echo "Running PostDeploy template tests..."
+      - cd tests
+      - echo "Running unit tests..."
+      - python -m pytest test_postdeploy_unit.py -v --tb=short --junit-xml=test-results-unit.xml || TEST_FAILED=1
+      - echo "Running property-based tests..."
+      - python -m pytest test_postdeploy_property_based.py -v --tb=short --junit-xml=test-results-property.xml || TEST_FAILED=1
+      - echo "Combining test results..."
+      - python -c "
+        import xml.etree.ElementTree as ET
+        import os
+        
+        # Combine JUnit XML files
+        combined = ET.Element('testsuites')
+        
+        for file in ['test-results-unit.xml', 'test-results-property.xml']:
+            if os.path.exists(file):
+                tree = ET.parse(file)
+                root = tree.getroot()
+                if root.tag == 'testsuites':
+                    for testsuite in root:
+                        combined.append(testsuite)
+                elif root.tag == 'testsuite':
+                    combined.append(root)
+        
+        # Write combined results
+        ET.ElementTree(combined).write('test-results.xml', encoding='utf-8', xml_declaration=True)
+        print('Test results combined successfully')
+        "
+      - cd ..
+      - if [ "$TEST_FAILED" = "1" ]; then echo "Some tests failed - check test reports for details" && exit 1; fi
 
   post_build:
     commands:
@@ -51,3 +83,8 @@ phases:
 artifacts:
   files:
     - '**/*'
+  reports:
+    postdeploy-tests:
+      files:
+        - 'tests/test-results.xml'
+      file-format: 'JUNITXML'

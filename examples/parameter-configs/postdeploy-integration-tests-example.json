@@ -1,0 +1,55 @@
+{
+  "Parameters": {
+    "Prefix": "acme",
+    "ProjectId": "web-app",
+    "StageId": "test",
+    "S3BucketNameOrgPrefix": "",
+    "RolePath": "/app_role/",
+    "PermissionsBoundaryArn": "arn:aws:iam::123456789012:policy/DeveloperBoundary",
+    "DeployEnvironment": "TEST",
+    "S3ArtifactsBucket": "acme-us-east-1-123456789012-web-app-artifacts",
+    "S3StaticHostBucket": "acme-web-app-static-content",
+    "BuildSpec": "application-infrastructure/buildspec.yml",
+    "PostDeployStageEnabled": "true",
+    "PostDeployS3StaticHostBucket": "acme-test-results-bucket",
+    "PostDeployBuildSpec": "examples/buildspec-postdeploy-integration-tests.yml",
+    "ParameterStoreHierarchy": "/acme/apps/",
+    "AlarmNotificationEmail": "qa-team@acme.com",
+    "CloudFormationSvcRoleIncludeManagedPolicyArns": "",
+    "CodeBuildSvcRoleIncludeManagedPolicyArns": "",
+    "PostDeploySvcRoleIncludeManagedPolicyArns": "",
+    "Repository": "web-app-repository",
+    "RepositoryBranch": "develop"
+  },
+  "Tags": {
+    "Environment": "Test",
+    "Application": "Web Application",
+    "Owner": "QA Team",
+    "CostCenter": "Quality Assurance",
+    "Purpose": "Integration Testing"
+  },
+  "Description": "Example configuration for PostDeploy integration testing",
+  "UsageNotes": [
+    "This configuration enables the PostDeploy stage to run comprehensive integration",
+    "tests against the deployed application infrastructure in the TEST environment.",
+    "The PostDeploy stage will discover deployed resources, run connectivity tests,",
+    "performance validation, and upload detailed test results to S3.",
+    "Integration tests include stack validation, API endpoint testing, environment",
+    "configuration validation, and resource tagging verification.",
+    "Performance tests are enabled for TEST and PROD environments only."
+  ],
+  "Prerequisites": [
+    "S3 bucket 'acme-test-results-bucket' must exist for test result uploads",
+    "Application should expose testable endpoints (APIs, health checks)",
+    "SSM parameters should be configured in the specified hierarchy",
+    "buildspec-postdeploy-integration-tests.yml should be in the repository",
+    "CloudFormation stack should have proper tags for resource identification"
+  ],
+  "TestingStrategy": {
+    "StackValidation": "Verifies CloudFormation stack is in healthy state",
+    "EndpointTesting": "Tests API endpoints for accessibility and response codes",
+    "EnvironmentConfig": "Validates environment-specific configuration",
+    "ResourceTagging": "Ensures proper resource tagging for governance",
+    "PerformanceTesting": "Basic response time and success rate validation"
+  }
+}

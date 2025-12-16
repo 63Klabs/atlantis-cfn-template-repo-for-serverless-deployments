@@ -4,48 +4,21 @@ Property-based tests for PostDeploy functionality in CloudFormation pipeline tem
 **Feature: pipeline-postdeploy-enhancement**
 """
 
-import yaml
 import pytest
+import sys
+import os
 from hypothesis import given, strategies as st, settings
 from typing import Dict, Any, List
 
+# Add tests directory to Python path
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# Custom YAML loader that handles CloudFormation intrinsic functions
-class CFNLoader(yaml.SafeLoader):
-    """YAML loader that handles CloudFormation intrinsic functions."""
-    pass
-
-
-# Add constructors for CloudFormation intrinsic functions
-def cfn_constructor(loader, node):
-    """Generic constructor for CloudFormation intrinsic functions."""
-    if isinstance(node, yaml.ScalarNode):
-        return {node.tag: loader.construct_scalar(node)}
-    elif isinstance(node, yaml.SequenceNode):
-        return {node.tag: loader.construct_sequence(node)}
-    elif isinstance(node, yaml.MappingNode):
-        return {node.tag: loader.construct_mapping(node)}
-    return {node.tag: None}
-
-
-# Register CloudFormation intrinsic functions
-cfn_tags = ['!Ref', '!GetAtt', '!Sub', '!Join', '!If', '!Not', '!Equals', 
-            '!And', '!Or', '!Select', '!Split', '!Base64', '!Cidr',
-            '!FindInMap', '!GetAZs', '!ImportValue', '!Condition']
-
-for tag in cfn_tags:
-    CFNLoader.add_constructor(tag, cfn_constructor)
-
-
-def load_template(filepath: str) -> Dict[str, Any]:
-    """Load and parse a CloudFormation YAML template."""
-    with open(filepath, 'r') as f:
-        return yaml.load(f, Loader=CFNLoader)
-
-
-def get_resource_condition(resource: Dict[str, Any]) -> str:
-    """Extract the condition from a CloudFormation resource."""
-    return resource.get('Condition', '')
+from cfn_test_utils import (
+    load_template, get_template_section, find_resources_with_condition,
+    get_parameter_references, validate_condition_logic, validate_iam_policy_structure,
+    validate_environment_variables, compare_resource_properties,
+    validate_pipeline_stages, validate_regex_pattern
+)
 
 
 def has_postdeploy_condition(condition: Any) -> bool:
@@ -225,25 +198,8 @@ def test_pipeline_dependencies_when_postdeploy_enabled(enabled: bool):
         assert 'PostDeployProject' not in deps_without_postdeploy, "When PostDeploy disabled, should not depend on PostDeployProject"
         assert 'CodeBuildProject' in deps_without_postdeploy, "Should always depend on CodeBuildProject"
 
-def find_exact_parameter_references(obj: Any, param_name: str) -> List[str]:
-    """Recursively find exact references to a parameter in a CloudFormation object."""
-    references = []
-    
-    if isinstance(obj, dict):
-        for key, value in obj.items():
-            if key == '!Ref' and value == param_name:
-                references.append(f"!Ref {param_name}")
-            else:
-                references.extend(find_exact_parameter_references(value, param_name))
-    elif isinstance(obj, list):
-        for item in obj:
-            references.extend(find_exact_parameter_references(item, param_name))
-    elif isinstance(obj, str):
-        # Only match exact parameter names, not substrings
-        if obj == param_name:
-            references.append(obj)
-    
-    return references
+# Use the utility function from cfn_test_utils
+# find_exact_parameter_references is now get_parameter_references
 
 
 @settings(max_examples=50)
@@ -282,12 +238,12 @@ def test_parameter_naming_consistency(param_name: str):
             assert param_name in group_params, f"Metadata should reference '{param_name}' consistently"
     
     # Check all references throughout the template use the correct parameter name
-    all_refs = find_exact_parameter_references(template, param_name)
+    all_refs = get_parameter_references(template, param_name)
     
     # Verify no incorrect parameter names are used
     incorrect_names = ['EnablePostDeployStage', 'PostDeployEnabled', 'EnablePostDeploy']
     for incorrect_name in incorrect_names:
-        incorrect_refs = find_exact_parameter_references(template, incorrect_name)
+        incorrect_refs = get_parameter_references(template, incorrect_name)
         assert len(incorrect_refs) == 0, f"Found incorrect parameter reference '{incorrect_name}': {incorrect_refs}"
 
 
@@ -338,7 +294,7 @@ def test_condition_name_consistency(condition_name: str):
     
     # Verify the condition references the correct parameter
     condition_def = conditions[condition_name]
-    condition_refs = find_exact_parameter_references(condition_def, 'PostDeployStageEnabled')
+    condition_refs = get_parameter_references(condition_def, 'PostDeployStageEnabled')
     assert len(condition_refs) > 0, f"Condition '{condition_name}' should reference PostDeployStageEnabled parameter"
     
     # Get all PostDeploy-related resources
@@ -471,7 +427,7 @@ def test_buildspec_parameter_reference(param_name: str):
         assert param_name in buildspec_str, f"BuildSpec configuration should reference {param_name} parameter"
     else:
         # Direct reference - should reference the parameter
-        buildspec_refs = find_exact_parameter_references(buildspec, param_name)
+        buildspec_refs = get_parameter_references(buildspec, param_name)
         assert len(buildspec_refs) > 0, f"BuildSpec should reference {param_name} parameter"
 
 

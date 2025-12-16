@@ -1,0 +1,46 @@
+{
+  "Parameters": {
+    "Prefix": "myorg",
+    "ProjectId": "api-service",
+    "StageId": "prod",
+    "S3BucketNameOrgPrefix": "myorg-docs",
+    "RolePath": "/",
+    "PermissionsBoundaryArn": "",
+    "DeployEnvironment": "PROD",
+    "S3ArtifactsBucket": "myorg-us-east-1-123456789012-api-service-artifacts",
+    "S3StaticHostBucket": "",
+    "BuildSpec": "application-infrastructure/buildspec.yml",
+    "PostDeployStageEnabled": "true",
+    "PostDeployS3StaticHostBucket": "myorg-docs-api-documentation",
+    "PostDeployBuildSpec": "examples/buildspec-postdeploy-api-docs.yml",
+    "ParameterStoreHierarchy": "/myorg/",
+    "AlarmNotificationEmail": "devops@myorg.com",
+    "CloudFormationSvcRoleIncludeManagedPolicyArns": "",
+    "CodeBuildSvcRoleIncludeManagedPolicyArns": "",
+    "PostDeploySvcRoleIncludeManagedPolicyArns": "",
+    "Repository": "api-service-repo",
+    "RepositoryBranch": "main"
+  },
+  "Tags": {
+    "Environment": "Production",
+    "Application": "API Service",
+    "Owner": "Platform Team",
+    "CostCenter": "Engineering",
+    "Purpose": "API Documentation Export"
+  },
+  "Description": "Example configuration for PostDeploy API documentation export",
+  "UsageNotes": [
+    "This configuration enables the PostDeploy stage to export OpenAPI specifications",
+    "from deployed API Gateway instances to an S3 bucket for documentation generation.",
+    "The PostDeployS3StaticHostBucket should be a pre-existing bucket with appropriate",
+    "permissions for the PostDeploy service role to write documentation files.",
+    "The buildspec-postdeploy-api-docs.yml will discover deployed APIs, export their",
+    "OpenAPI specs, validate them, and upload to the specified S3 bucket with metadata."
+  ],
+  "Prerequisites": [
+    "S3 bucket 'myorg-docs-api-documentation' must exist",
+    "Bucket policy should allow PostDeploy service role to write objects",
+    "API Gateway instances should be properly tagged for discovery",
+    "buildspec-postdeploy-api-docs.yml should be in the repository"
+  ]
+}

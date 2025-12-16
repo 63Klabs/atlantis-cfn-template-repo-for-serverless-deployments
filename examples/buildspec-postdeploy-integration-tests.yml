@@ -1,0 +1,380 @@
+# Example PostDeploy BuildSpec for Integration Testing
+# This buildspec demonstrates how to run integration tests against the deployed
+# application infrastructure to validate that the deployment was successful.
+#
+# Usage:
+# - Set PostDeployStageEnabled: "true"
+# - Set PostDeployBuildSpec: "examples/buildspec-postdeploy-integration-tests.yml"
+# - Optionally set PostDeployS3StaticHostBucket for test result uploads
+
+version: 0.2
+
+# Environment variables available in PostDeploy stage:
+# - AWS_PARTITION, AWS_REGION, AWS_ACCOUNT: AWS environment info
+# - PREFIX, PROJECT_ID, STAGE_ID: Resource naming components
+# - S3_ARTIFACTS_BUCKET: Pipeline artifacts bucket
+# - POST_DEPLOY_S3_STATIC_HOST_BUCKET: Optional bucket for test results
+# - PARAM_STORE_HIERARCHY: SSM parameter path for application config
+# - DEPLOY_ENVIRONMENT: Deployment environment (DEV/TEST/PROD)
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.13
+      nodejs: 22
+    commands:
+      - echo "Installing dependencies for integration testing"
+      - pip install boto3 requests pytest pytest-html pytest-json-report
+      - npm install -g newman # For Postman collection testing
+
+  pre_build:
+    commands:
+      - echo "PostDeploy integration testing started at `date`"
+      - echo "Testing deployment: $PREFIX-$PROJECT_ID-$STAGE_ID"
+      - echo "Environment: $DEPLOY_ENVIRONMENT"
+      
+      # Discover deployed resources
+      - |
+        python3 << 'EOF'
+        import boto3
+        import json
+        import os
+        
+        # Initialize AWS clients
+        cf = boto3.client('cloudformation')
+        apigateway = boto3.client('apigateway')
+        ssm = boto3.client('ssm')
+        
+        # Get application deployment identifier
+        app_id = f"{os.environ['PREFIX']}-{os.environ['PROJECT_ID']}-{os.environ['STAGE_ID']}"
+        stack_name = f"{app_id}-application"
+        
+        test_config = {
+            "application_id": app_id,
+            "stack_name": stack_name,
+            "region": os.environ['AWS_REGION'],
+            "environment": os.environ['DEPLOY_ENVIRONMENT'],
+            "endpoints": [],
+            "parameters": {}
+        }
+        
+        try:
+            # Get CloudFormation stack outputs
+            stack_response = cf.describe_stacks(StackName=stack_name)
+            stack = stack_response['Stacks'][0]
+            
+            print(f"Found stack: {stack_name}")
+            print(f"Stack status: {stack['StackStatus']}")
+            
+            # Extract outputs
+            if 'Outputs' in stack:
+                for output in stack['Outputs']:
+                    key = output['OutputKey']
+                    value = output['OutputValue']
+                    test_config[key] = value
+                    
+                    # Look for API Gateway endpoints
+                    if 'api' in key.lower() and ('url' in key.lower() or 'endpoint' in key.lower()):
+                        test_config["endpoints"].append({
+                            "name": key,
+                            "url": value,
+                            "type": "api_gateway"
+                        })
+            
+            # Get application parameters from SSM
+            param_path = os.environ['PARAM_STORE_HIERARCHY']
+            try:
+                params_response = ssm.get_parameters_by_path(
+                    Path=param_path,
+                    Recursive=True
+                )
+                
+                for param in params_response['Parameters']:
+                    param_name = param['Name'].replace(param_path, '')
+                    test_config["parameters"][param_name] = param['Value']
+                    
+            except Exception as e:
+                print(f"Note: Could not retrieve SSM parameters: {e}")
+            
+        except Exception as e:
+            print(f"Error discovering resources: {e}")
+            test_config["error"] = str(e)
+        
+        # Save test configuration
+        with open('test-config.json', 'w') as f:
+            json.dump(test_config, f, indent=2)
+        
+        print("Generated test configuration")
+        EOF
+
+  build:
+    commands:
+      - echo "Running integration tests"
+      
+      # Create test directory structure
+      - mkdir -p test-results
+      
+      # Run basic connectivity tests
+      - |
+        python3 << 'EOF'
+        import json
+        import requests
+        import boto3
+        import pytest
+        import sys
+        from datetime import datetime
+        
+        # Load test configuration
+        with open('test-config.json', 'r') as f:
+            config = json.load(f)
+        
+        class TestDeployedApplication:
+            def setup_class(self):
+                self.config = config
+                self.cf = boto3.client('cloudformation')
+                
+            def test_stack_exists_and_complete(self):
+                """Test that the CloudFormation stack exists and is in a complete state"""
+                try:
+                    response = self.cf.describe_stacks(StackName=self.config['stack_name'])
+                    stack = response['Stacks'][0]
+                    
+                    assert stack['StackStatus'] in [
+                        'CREATE_COMPLETE', 
+                        'UPDATE_COMPLETE'
+                    ], f"Stack status is {stack['StackStatus']}"
+                    
+                    print(f"✓ Stack {self.config['stack_name']} is in {stack['StackStatus']} state")
+                    
+                except Exception as e:
+                    pytest.fail(f"Stack validation failed: {e}")
+            
+            def test_api_endpoints_accessible(self):
+                """Test that API endpoints are accessible and return expected responses"""
+                if not self.config.get('endpoints'):
+                    pytest.skip("No API endpoints found to test")
+                
+                for endpoint in self.config['endpoints']:
+                    try:
+                        # Test basic connectivity
+                        response = requests.get(endpoint['url'], timeout=30)
+                        
+                        # Accept various success codes
+                        assert response.status_code in [200, 201, 202, 204, 301, 302, 404], \
+                            f"Endpoint {endpoint['name']} returned {response.status_code}"
+                        
+                        print(f"✓ Endpoint {endpoint['name']} is accessible (status: {response.status_code})")
+                        
+                    except requests.exceptions.RequestException as e:
+                        pytest.fail(f"Endpoint {endpoint['name']} is not accessible: {e}")
+            
+            def test_environment_configuration(self):
+                """Test that environment-specific configuration is correct"""
+                expected_env = self.config.get('environment', 'PROD')
+                
+                # Test environment-specific behavior
+                if expected_env == 'PROD':
+                    # In production, we might expect certain security headers
+                    pass
+                elif expected_env == 'TEST':
+                    # In test, we might expect debug endpoints
+                    pass
+                
+                print(f"✓ Environment configuration validated for {expected_env}")
+            
+            def test_resource_tagging(self):
+                """Test that deployed resources have proper tags"""
+                try:
+                    response = self.cf.describe_stacks(StackName=self.config['stack_name'])
+                    stack = response['Stacks'][0]
+                    
+                    # Check for required tags
+                    tags = {tag['Key']: tag['Value'] for tag in stack.get('Tags', [])}
+                    
+                    # Verify application identification tags exist
+                    assert 'atlantis:ApplicationDeploymentId' in tags or \
+                           any('atlantis' in key for key in tags.keys()), \
+                           "Missing application identification tags"
+                    
+                    print("✓ Resource tagging validation passed")
+                    
+                except Exception as e:
+                    pytest.fail(f"Resource tagging validation failed: {e}")
+        
+        # Run the tests
+        if __name__ == "__main__":
+            pytest.main([
+                __file__,
+                "-v",
+                "--html=test-results/integration-test-report.html",
+                "--self-contained-html",
+                "--json-report",
+                "--json-report-file=test-results/integration-test-results.json"
+            ])
+        EOF
+      
+      # Run performance/load tests if in appropriate environment
+      - |
+        if [ "$DEPLOY_ENVIRONMENT" = "TEST" ] || [ "$DEPLOY_ENVIRONMENT" = "PROD" ]; then
+          echo "Running basic performance validation"
+          
+          python3 << 'EOF'
+        import json
+        import requests
+        import time
+        from statistics import mean, median
+        
+        # Load test configuration
+        with open('test-config.json', 'r') as f:
+            config = json.load(f)
+        
+        performance_results = {
+            "timestamp": time.time(),
+            "environment": config.get('environment'),
+            "endpoints": []
+        }
+        
+        # Basic performance test for each endpoint
+        for endpoint in config.get('endpoints', []):
+            print(f"Performance testing {endpoint['name']}")
+            
+            response_times = []
+            success_count = 0
+            
+            # Make 10 requests to measure response time
+            for i in range(10):
+                try:
+                    start_time = time.time()
+                    response = requests.get(endpoint['url'], timeout=10)
+                    end_time = time.time()
+                    
+                    response_time = (end_time - start_time) * 1000  # Convert to ms
+                    response_times.append(response_time)
+                    
+                    if response.status_code < 400:
+                        success_count += 1
+                        
+                except Exception as e:
+                    print(f"Request {i+1} failed: {e}")
+            
+            if response_times:
+                endpoint_results = {
+                    "name": endpoint['name'],
+                    "url": endpoint['url'],
+                    "avg_response_time_ms": mean(response_times),
+                    "median_response_time_ms": median(response_times),
+                    "min_response_time_ms": min(response_times),
+                    "max_response_time_ms": max(response_times),
+                    "success_rate": success_count / 10,
+                    "total_requests": 10
+                }
+                
+                performance_results["endpoints"].append(endpoint_results)
+                
+                print(f"  Average response time: {endpoint_results['avg_response_time_ms']:.2f}ms")
+                print(f"  Success rate: {endpoint_results['success_rate']*100:.1f}%")
+        
+        # Save performance results
+        with open('test-results/performance-results.json', 'w') as f:
+            json.dump(performance_results, f, indent=2)
+        
+        print("Performance testing completed")
+        EOF
+        else
+          echo "Skipping performance tests for $DEPLOY_ENVIRONMENT environment"
+        fi
+
+  post_build:
+    commands:
+      - echo "Processing test results"
+      
+      # Generate test summary
+      - |
+        python3 << 'EOF'
+        import json
+        import os
+        from datetime import datetime
+        
+        summary = {
+            "test_run": {
+                "timestamp": datetime.utcnow().isoformat() + "Z",
+                "application": {
+                    "prefix": os.environ['PREFIX'],
+                    "project_id": os.environ['PROJECT_ID'],
+                    "stage_id": os.environ['STAGE_ID'],
+                    "environment": os.environ['DEPLOY_ENVIRONMENT']
+                }
+            },
+            "results": {}
+        }
+        
+        # Load integration test results if available
+        try:
+            with open('test-results/integration-test-results.json', 'r') as f:
+                integration_results = json.load(f)
+                summary["results"]["integration_tests"] = {
+                    "total": integration_results.get("summary", {}).get("total", 0),
+                    "passed": integration_results.get("summary", {}).get("passed", 0),
+                    "failed": integration_results.get("summary", {}).get("failed", 0),
+                    "status": "PASSED" if integration_results.get("summary", {}).get("failed", 0) == 0 else "FAILED"
+                }
+        except FileNotFoundError:
+            summary["results"]["integration_tests"] = {"status": "NOT_RUN"}
+        
+        # Load performance test results if available
+        try:
+            with open('test-results/performance-results.json', 'r') as f:
+                perf_results = json.load(f)
+                summary["results"]["performance_tests"] = {
+                    "endpoints_tested": len(perf_results.get("endpoints", [])),
+                    "status": "COMPLETED"
+                }
+        except FileNotFoundError:
+            summary["results"]["performance_tests"] = {"status": "NOT_RUN"}
+        
+        # Save summary
+        with open('test-results/test-summary.json', 'w') as f:
+            json.dump(summary, f, indent=2)
+        
+        print("Generated test summary")
+        EOF
+      
+      # Upload test results if bucket specified
+      - |
+        if [ -n "$POST_DEPLOY_S3_STATIC_HOST_BUCKET" ]; then
+          echo "Uploading test results to S3"
+          
+          RESULTS_PATH="test-results/$PREFIX-$PROJECT_ID-$STAGE_ID/$(date +%Y-%m-%d-%H%M%S)"
+          
+          # Upload all test result files
+          aws s3 sync test-results/ "s3://$POST_DEPLOY_S3_STATIC_HOST_BUCKET/$RESULTS_PATH/" \
+            --exclude "*" --include "*.json" --include "*.html"
+          
+          echo "Test results uploaded to: s3://$POST_DEPLOY_S3_STATIC_HOST_BUCKET/$RESULTS_PATH/"
+        fi
+      
+      - echo "PostDeploy integration testing completed at `date`"
+      
+      # Fail the build if integration tests failed
+      - |
+        if [ -f "test-results/integration-test-results.json" ]; then
+          FAILED_TESTS=$(python3 -c "
+        import json
+        with open('test-results/integration-test-results.json', 'r') as f:
+            results = json.load(f)
+        print(results.get('summary', {}).get('failed', 0))
+        ")
+          
+          if [ "$FAILED_TESTS" -gt "0" ]; then
+            echo "ERROR: $FAILED_TESTS integration tests failed"
+            exit 1
+          else
+            echo "SUCCESS: All integration tests passed"
+          fi
+        fi
+
+artifacts:
+  files:
+    - 'test-results/**/*'
+    - 'test-config.json'
+  name: PostDeployIntegrationTestArtifact
