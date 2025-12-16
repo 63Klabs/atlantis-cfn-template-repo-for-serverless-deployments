@@ -439,6 +439,7 @@ Resources:
             Effect: Allow
             Resource: 
             - !Sub "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${Prefix}-${ProjectId}-${StageId}-Build"
+            - !Sub "arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${Prefix}-${ProjectId}-${StageId}-PostDeploy"
 
           - Sid: CodeBuildReportGroup
             Action:
