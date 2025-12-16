@@ -349,6 +349,9 @@ Conditions:
 
   HasManagedPoliciesForCodeBuildSvcRole: !Not [!Equals [!Join [",", !Ref CodeBuildSvcRoleIncludeManagedPolicyArns], ""]]
 
+  # Combined conditions for resource creation
+  IsPostDeployEnabledAndNotDev: !And [IsNotDevelopment, IsPostDeployEnabled]
+
 # =============================================================================
 # RESOURCES
 # -----------------------------------------------------------------------------
@@ -627,7 +630,7 @@ Resources:
 
   PostDeployServiceRole:
     Type: AWS::IAM::Role
-    Condition: !And [IsNotDevelopment, IsPostDeployEnabled]
+    Condition: IsPostDeployEnabledAndNotDev
     Properties:
       Path: !Ref RolePath
       RoleName: !Sub "${Prefix}-Worker-${ProjectId}-${StageId}-PostDeployServiceRole"
@@ -1261,7 +1264,7 @@ Resources:
 
   PostDeployProject:
     Type: AWS::CodeBuild::Project
-    Condition: !And [IsNotDevelopment, IsPostDeployEnabled]
+    Condition: IsPostDeployEnabledAndNotDev
     Properties:
       Name: !Sub '${Prefix}-${ProjectId}-${StageId}-PostDeploy'
       Description: !Sub "PostDeploy CodeBuild Project for ${Prefix}-${ProjectId}-${StageId}. Runs post-deployment tasks such as integration tests, configuration validation, and artifact export. Only created when PostDeployStageEnabled is true."
@@ -1344,7 +1347,7 @@ Resources:
 
   PostDeployLogGroup:
     Type: AWS::Logs::LogGroup
-    Condition: !And [IsNotDevelopment, IsPostDeployEnabled]
+    Condition: IsPostDeployEnabledAndNotDev
     DeletionPolicy: Delete
     UpdateReplacePolicy: Retain
     Properties:
