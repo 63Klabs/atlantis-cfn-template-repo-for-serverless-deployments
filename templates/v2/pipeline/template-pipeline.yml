@@ -1172,7 +1172,7 @@ Resources:
         #                         https://docs.aws.amazon.com/codebuild/latest/userguide/available-runtimes.html
         ComputeType: BUILD_GENERAL1_SMALL
         Type: LINUX_CONTAINER
-        Image: aws/codebuild/amazonlinux-aarch64-standard:3.0 # Node 22 / Python 3.13 / Java corretto21
+        Image: aws/codebuild/amazonlinux-x86_64-standard:5.0 # Node 22 / Python 3.13 / Java corretto21
 
         # BUILD ENVIRONMENT VARIABLES : You can specify any other environment variables your buildspec.yml is looking for.
         EnvironmentVariables:
@@ -1279,7 +1279,7 @@ Resources:
         #                         https://docs.aws.amazon.com/codebuild/latest/userguide/available-runtimes.html
         ComputeType: BUILD_GENERAL1_SMALL
         Type: LINUX_CONTAINER
-        Image: aws/codebuild/amazonlinux-aarch64-standard:3.0 # Node 22 / Python 3.13 / Java corretto21
+        Image: aws/codebuild/amazonlinux-x86_64-standard:5.0 # Node 22 / Python 3.13 / Java corretto21
 
         # BUILD ENVIRONMENT VARIABLES : You can specify any other environment variables your buildspec.yml is looking for.
         EnvironmentVariables:
