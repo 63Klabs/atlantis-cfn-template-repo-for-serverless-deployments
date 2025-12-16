@@ -32,7 +32,7 @@ def has_postdeploy_condition(condition: Any) -> bool:
 
 
 # Load the pipeline template
-PIPELINE_TEMPLATE = load_template('templates/v2/pipeline/template-pipeline.yml')
+PIPELINE_TEMPLATE = load_template('../templates/v2/pipeline/template-pipeline.yml')
 
 
 @settings(max_examples=100)

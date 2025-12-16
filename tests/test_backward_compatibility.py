@@ -46,8 +46,8 @@ def load_template(filepath):
 
 
 # Load templates once for all tests
-ORIGINAL_TEMPLATE = load_template('templates/v2/storage/template-storage-s3-oac-for-cloudfront.yml')
-V2_TEMPLATE = load_template('templates/v2/storage/template-storage-s3-oac-for-cloudfront.yml')
+ORIGINAL_TEMPLATE = load_template('../templates/v2/storage/template-storage-s3-oac-for-cloudfront.yml')
+V2_TEMPLATE = load_template('../templates/v2/storage/template-storage-s3-oac-for-cloudfront.yml')
 
 
 def test_parameter_retention():

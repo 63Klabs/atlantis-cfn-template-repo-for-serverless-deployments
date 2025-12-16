@@ -22,7 +22,7 @@ from cfn_test_utils import (
 
 
 # Load the pipeline template
-PIPELINE_TEMPLATE = load_template('templates/v2/pipeline/template-pipeline.yml')
+PIPELINE_TEMPLATE = load_template('../templates/v2/pipeline/template-pipeline.yml')
 
 
 class TestParameterValidation:
