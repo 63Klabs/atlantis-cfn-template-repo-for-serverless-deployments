@@ -345,7 +345,7 @@ Conditions:
     - !And 
       - !Not [!Equals [!Ref PostDeployBuildSpec, ""]]
       - !Equals [!Select [0, !Split [":", !Ref PostDeployBuildSpec]], "s3"]
-    - false
+    - !Equals [1, 2]
   UseDefaultPostDeployBuildSpecLocation: !Equals [!Ref PostDeployBuildSpec, ""]
   HasManagedPoliciesForPostDeploySvcRole: !Not [!Equals [!Join [",", !Ref PostDeploySvcRoleIncludeManagedPolicyArns], ""]]
 
