@@ -73,6 +73,12 @@ Exit Codes:
         help='Show only summary, not detailed errors'
     )
     
+    parser.add_argument(
+        '--warnings-only',
+        action='store_true',
+        help='Show only templates with warnings and their warning details'
+    )
+    
     return parser.parse_args()
 
 
@@ -153,7 +159,8 @@ def validate_templates(
     project_root: Path,
     template_paths: list,
     verbose: bool = False,
-    fail_on_warnings: bool = False
+    fail_on_warnings: bool = False,
+    warnings_only: bool = False
 ) -> tuple[ValidationSummary, Optional[str]]:
     """Validate CloudFormation templates.
     
@@ -162,6 +169,7 @@ def validate_templates(
         template_paths: List of template paths to validate
         verbose: Enable verbose output
         fail_on_warnings: Treat warnings as failures
+        warnings_only: Show only templates with warnings
         
     Returns:
         Tuple of (validation_summary, error_message)
@@ -183,12 +191,13 @@ def validate_templates(
         return None, f"Validation execution error: {str(e)}"
 
 
-def format_summary_output(summary: ValidationSummary, verbose: bool = False) -> str:
+def format_summary_output(summary: ValidationSummary, verbose: bool = False, warnings_only: bool = False) -> str:
     """Format validation summary for output.
     
     Args:
         summary: Validation summary to format
         verbose: Enable verbose output
+        warnings_only: Show only templates with warnings
         
     Returns:
         Formatted summary string
@@ -212,6 +221,52 @@ def format_summary_output(summary: ValidationSummary, verbose: bool = False) -> 
         lines.append(f"Execution time:    {summary.execution_time:.2f}s")
     
     lines.append("=" * 60)
+    
+    return "\n".join(lines)
+
+
+def format_warnings_only_output(summary: ValidationSummary, project_root: Path) -> str:
+    """Format output showing only templates with warnings.
+    
+    Args:
+        summary: Validation summary to format
+        project_root: Project root for relative paths
+        
+    Returns:
+        Formatted warnings-only output string
+    """
+    lines = []
+    
+    # Find templates with warnings
+    templates_with_warnings = [r for r in summary.results if r.warnings]
+    
+    if not templates_with_warnings:
+        lines.append("\n🎉 No templates have warnings!")
+        return "\n".join(lines)
+    
+    lines.append(f"\n⚠️  Templates with Warnings ({len(templates_with_warnings)}):")
+    lines.append("=" * 50)
+    
+    for result in templates_with_warnings:
+        try:
+            relative_path = result.template_path.relative_to(project_root)
+        except ValueError:
+            relative_path = result.template_path
+        
+        lines.append(f"\n📄 {relative_path}")
+        lines.append(f"   Warnings: {len(result.warnings)}")
+        lines.append("-" * 40)
+        
+        # Show warning details
+        for warning in result.warnings:
+            location = ""
+            if warning.line_number:
+                location = f" (line {warning.line_number}"
+                if warning.column_number:
+                    location += f", col {warning.column_number}"
+                location += ")"
+            
+            lines.append(f"   ⚠️  [{warning.rule_id}]: {warning.message}{location}")
     
     return "\n".join(lines)
 
@@ -355,7 +410,8 @@ def main():
         project_root,
         template_paths,
         verbose=args.verbose,
-        fail_on_warnings=args.fail_on_warnings
+        fail_on_warnings=args.fail_on_warnings,
+        warnings_only=args.warnings_only
     )
     
     if error:
@@ -364,10 +420,13 @@ def main():
     
     # Step 4: Report results
     if not args.quiet:
-        print("\n" + format_summary_output(summary, verbose=args.verbose))
-        
-        if not args.summary_only:
-            print(format_detailed_output(summary, project_root))
+        if args.warnings_only:
+            print(format_warnings_only_output(summary, project_root))
+        else:
+            print("\n" + format_summary_output(summary, verbose=args.verbose))
+            
+            if not args.summary_only:
+                print(format_detailed_output(summary, project_root))
     
     # Determine exit code
     if summary.failed_templates > 0:

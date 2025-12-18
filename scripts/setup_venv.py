@@ -30,7 +30,7 @@ def run_command(command, cwd=None, check=True):
 
 def setup_virtual_environment():
     """Set up .venv virtual environment with required dependencies."""
-    project_root = Path(__file__).parent
+    project_root = Path(__file__).parent.parent  # Go up one level from scripts/ to project root
     venv_path = project_root / ".venv"
     
     print("Setting up virtual environment for CFN Template Linter...")

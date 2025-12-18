@@ -16,10 +16,12 @@ phases:
       python: latest
     commands:
       - pip install --upgrade awscli boto3
-      - pip install -r tests/requirements.txt
       - echo "Setting up CFN template validation environment..."
       - python scripts/setup_venv.py
       - echo "CFN validation environment setup complete"
+      - echo "Installing test requirements into virtual environment..."
+      - .venv/bin/pip install -r tests/requirements.txt
+      - echo "All dependencies installed"
 
   pre_build:
     commands:
@@ -30,18 +32,18 @@ phases:
     commands:
       - echo "Build phase started at $(date)"
       - echo "Running CloudFormation template validation..."
-      - python scripts/cfn_lint_runner.py --templates-dir templates/v2 --verbose || CFN_VALIDATION_FAILED=1
+      - .venv/bin/python scripts/cfn_lint_runner.py --templates-dir templates/v2 --verbose || CFN_VALIDATION_FAILED=1
       - echo "Running PostDeploy template tests..."
       - cd tests
       - echo "Running unit tests..."
-      - python -m pytest test_postdeploy_unit.py -v --tb=short --junit-xml=test-results-unit.xml || TEST_FAILED=1
+      - ../.venv/bin/python -m pytest test_postdeploy_unit.py -v --tb=short --junit-xml=test-results-unit.xml || TEST_FAILED=1
       - echo "Running property-based tests..."
-      - python -m pytest test_postdeploy_property_based.py -v --tb=short --junit-xml=test-results-property.xml || TEST_FAILED=1
+      - ../.venv/bin/python -m pytest test_postdeploy_property_based.py -v --tb=short --junit-xml=test-results-property.xml || TEST_FAILED=1
       - echo "Running CFN validation tests..."
-      - python -m pytest test_cfn_templates.py -v --tb=short --junit-xml=test-results-cfn.xml || TEST_FAILED=1
+      - ../.venv/bin/python -m pytest test_cfn_templates.py -v --tb=short --junit-xml=test-results-cfn.xml || TEST_FAILED=1
       - echo "Combining test results..."
       - |
-        python -c "
+        ../.venv/bin/python -c "
         import xml.etree.ElementTree as ET
         import os
         
