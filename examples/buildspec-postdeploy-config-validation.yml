@@ -13,14 +13,14 @@ version: 0.2
 # - AWS_PARTITION, AWS_REGION, AWS_ACCOUNT: AWS environment info
 # - PREFIX, PROJECT_ID, STAGE_ID: Resource naming components
 # - S3_ARTIFACTS_BUCKET: Pipeline artifacts bucket
-# - POST_DEPLOY_S3_STATIC_HOST_BUCKET: Optional bucket for validation reports
+# - S3_STATIC_HOST_BUCKET: Optional bucket for validation reports
 # - PARAM_STORE_HIERARCHY: SSM parameter path for application config
 # - DEPLOY_ENVIRONMENT: Deployment environment (DEV/TEST/PROD)
 
 phases:
   install:
     runtime-versions:
-      python: 3.13
+      python: latest
     commands:
       - echo "Installing dependencies for configuration validation"
       - pip install boto3 botocore cfn-lint checkov
@@ -333,16 +333,16 @@ phases:
       
       # Upload validation results if bucket specified
       - |
-        if [ -n "$POST_DEPLOY_S3_STATIC_HOST_BUCKET" ]; then
+        if [ -n "$S3_STATIC_HOST_BUCKET" ]; then
           echo "Uploading validation results to S3"
           
           VALIDATION_PATH="validation-reports/$PREFIX-$PROJECT_ID-$STAGE_ID/$(date +%Y-%m-%d-%H%M%S)"
           
           # Upload all validation result files
-          aws s3 sync validation-results/ "s3://$POST_DEPLOY_S3_STATIC_HOST_BUCKET/$VALIDATION_PATH/" \
+          aws s3 sync validation-results/ "s3://$S3_STATIC_HOST_BUCKET/$VALIDATION_PATH/" \
             --exclude "*" --include "*.json"
           
-          echo "Validation results uploaded to: s3://$POST_DEPLOY_S3_STATIC_HOST_BUCKET/$VALIDATION_PATH/"
+          echo "Validation results uploaded to: s3://$S3_STATIC_HOST_BUCKET/$VALIDATION_PATH/"
         fi
       
       - echo "PostDeploy configuration validation completed at `date`"

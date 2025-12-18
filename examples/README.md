@@ -46,7 +46,7 @@ examples/
 - Compliance documentation for API governance
 
 **Environment Variables Used**:
-- `POST_DEPLOY_S3_STATIC_HOST_BUCKET`: Target bucket for documentation files
+- `S3_STATIC_HOST_BUCKET`: Target bucket for documentation files
 - Standard pipeline variables for resource discovery
 
 ### 2. Integration Testing (`buildspec-postdeploy-integration-tests.yml`)
@@ -177,7 +177,7 @@ All PostDeploy buildspec files have access to the same environment variables as 
 - `PARAM_STORE_HIERARCHY`: SSM parameter path prefix
 
 ### PostDeploy-Specific
-- `POST_DEPLOY_S3_STATIC_HOST_BUCKET`: Target bucket for PostDeploy artifacts
+- `S3_STATIC_HOST_BUCKET`: Target bucket for PostDeploy artifacts
 
 ## Best Practices
 
@@ -247,7 +247,7 @@ build:
 post_build:
   commands:
     - aws ssm get-parameters-by-path --path $PARAM_STORE_HIERARCHY --recursive > config-export.json
-    - aws s3 cp config-export.json s3://$POST_DEPLOY_S3_STATIC_HOST_BUCKET/configs/
+    - aws s3 cp config-export.json s3://$S3_STATIC_HOST_BUCKET/configs/
 ```
 
 ## Troubleshooting

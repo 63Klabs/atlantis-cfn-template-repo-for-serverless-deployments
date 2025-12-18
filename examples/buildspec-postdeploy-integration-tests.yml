@@ -13,15 +13,15 @@ version: 0.2
 # - AWS_PARTITION, AWS_REGION, AWS_ACCOUNT: AWS environment info
 # - PREFIX, PROJECT_ID, STAGE_ID: Resource naming components
 # - S3_ARTIFACTS_BUCKET: Pipeline artifacts bucket
-# - POST_DEPLOY_S3_STATIC_HOST_BUCKET: Optional bucket for test results
+# - S3_STATIC_HOST_BUCKET: Optional bucket for test results
 # - PARAM_STORE_HIERARCHY: SSM parameter path for application config
 # - DEPLOY_ENVIRONMENT: Deployment environment (DEV/TEST/PROD)
 
 phases:
   install:
     runtime-versions:
-      python: 3.13
-      nodejs: 22
+      nodejs: latest
+      python: latest
     commands:
       - echo "Installing dependencies for integration testing"
       - pip install boto3 requests pytest pytest-html pytest-json-report
@@ -341,16 +341,16 @@ phases:
       
       # Upload test results if bucket specified
       - |
-        if [ -n "$POST_DEPLOY_S3_STATIC_HOST_BUCKET" ]; then
+        if [ -n "$S3_STATIC_HOST_BUCKET" ]; then
           echo "Uploading test results to S3"
           
           RESULTS_PATH="test-results/$PREFIX-$PROJECT_ID-$STAGE_ID/$(date +%Y-%m-%d-%H%M%S)"
           
           # Upload all test result files
-          aws s3 sync test-results/ "s3://$POST_DEPLOY_S3_STATIC_HOST_BUCKET/$RESULTS_PATH/" \
+          aws s3 sync test-results/ "s3://$S3_STATIC_HOST_BUCKET/$RESULTS_PATH/" \
             --exclude "*" --include "*.json" --include "*.html"
           
-          echo "Test results uploaded to: s3://$POST_DEPLOY_S3_STATIC_HOST_BUCKET/$RESULTS_PATH/"
+          echo "Test results uploaded to: s3://$S3_STATIC_HOST_BUCKET/$RESULTS_PATH/"
         fi
       
       - echo "PostDeploy integration testing completed at `date`"

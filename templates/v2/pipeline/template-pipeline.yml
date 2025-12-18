@@ -155,7 +155,7 @@ Parameters:
     Type: String
     Description: "The local or S3 URI of the CodeBuild buildspec.yml file. For example, 'buildspec.yml', 'application-infrastructure/buildspec.yml' or 's3://mybucket/path/buildspec.yml'. Best practice is to have a single buildspec file for all instances of an application. This option exists if you cannot store your buildspec file with your source code OR wish to use a central buildspec for a group of deployments. This is not for managing multiple buildspecs on a single repo. Default is application-infrastructure/buildspec.yml, and blank will use the SAM default buildspec.yml in the root of the repository. If using S3: Though Source.BuildSpec uses an ARN for S3 locations, an S3 url is requested to make it easier to parse for permissions and other uses."
     Default: "application-infrastructure/buildspec.yml"
-    AllowedPattern: "^s3:\\/\\/[a-zA-Z0-9][a-zA-Z0-9\\-]{1,61}[a-zA-Z0-9]\\/.*$|^[a-zA-Z0-9_\\-\\/]*(buildspec\\.yml)$|^$"
+    AllowedPattern: "^s3:\\/\\/[a-zA-Z0-9][a-zA-Z0-9\\-]{1,61}[a-zA-Z0-9]\\/.*$|^([a-zA-Z0-9][a-zA-Z0-9_\\-\\/]*)?(buildspec\\.yml)$|^$"
     ConstraintDescription: "Must be a valid S3 URI or a local path ending with 'buildspec.yml'. For example, 'buildspec.yml', 'application-infrastructure/buildspec.yml' or 's3://mybucket/buildspec.yml'. If empty, buildspec.yml at root of repo will be sought."
 
   # ---------------------------------------------------------------------------
@@ -216,9 +216,9 @@ Parameters:
 
   PostDeployBuildSpec:
     Type: String
-    Description: "The local or S3 URI of the buildspec file for the PostDeploy stage. For example, 'buildspec-postdeploy.yml', 'application-infrastructure/buildspec-postdeploy.yml' or 's3://mybucket/buildspec-postdeploy.yml'. Best practice is to have a single buildspec-postdeploy file for all instances of an application. This option exists if you cannot store your buildspec-postdeploy file with your source code OR wish to use a central buildspec-postdeploy for a group of deployments. Default is 'application-infrastructure/buildspec-postdeploy.yml', and blank will use the SAM default buildspec-postdeploy.yml in the root of the repository. When using S3: Though Source.BuildSpec uses an ARN for S3 locations, an S3 URL is requested to make it easier to parse for IAM permissions and other uses."
+    Description: "The local or S3 URI of the buildspec file for the PostDeploy stage. For example, 'application-infrastructure/buildspec-postdeploy.yml', 'buildspec-postdeploy.yml' or 's3://mybucket/buildspec-postdeploy.yml'. Best practice is to have a single file for all instances of an application. This option exists if you cannot store your buildspec-postdeploy file with your source code OR wish to use a central buildspec-postdeploy for a group of deployments. Default is 'application-infrastructure/buildspec-postdeploy.yml', and leaving blank will use the SAM default buildspec-postdeploy.yml in the root of the repository. For S3 use an S3 URL (S3://) rather than an ARN."
     Default: "application-infrastructure/buildspec-postdeploy.yml"
-    AllowedPattern: "^s3:\\/\\/[a-zA-Z0-9][a-zA-Z0-9\\-]{1,61}[a-zA-Z0-9]\\/.*$|^[a-zA-Z0-9_\\-\\/]*(buildspec-postdeploy\\.yml)$|^$"
+    AllowedPattern: "^s3:\\/\\/[a-zA-Z0-9][a-zA-Z0-9\\-]{1,61}[a-zA-Z0-9]\\/.*$|^([a-zA-Z0-9][a-zA-Z0-9_\\-\\/]*)?(buildspec-postdeploy\\.yml)$|^$"
     ConstraintDescription: "Must be a valid S3 URI or a local path ending with 'buildspec-postdeploy.yml'. For example, 'buildspec-postdeploy.yml', 'application-infrastructure/buildspec-postdeploy.yml' or 's3://mybucket/buildspec-postdeploy.yml'. May not be empty."
 
   # ---------------------------------------------------------------------------
@@ -1311,15 +1311,13 @@ Resources:
         - Name: ALARM_NOTIFICATION_EMAIL
           Value: !Ref 'AlarmNotificationEmail'
         - Name: S3_STATIC_HOST_BUCKET
-          Value: !Ref 'S3StaticHostBucket'
+          Value: !Ref 'PostDeployS3StaticHostBucket'
         - Name: ROLE_PATH
           Value: !Ref 'RolePath'
         - Name: PERMISSIONS_BOUNDARY_ARN
           Value: !Ref 'PermissionsBoundaryArn'
         - Name: NODE_ENV
           Value: "production" # We do not need dev dependencies deployed to Lambda as they are for local development. IF you needed to run tests during build, then temporarily set in buildspec but be sure final deploy is based on production dependencies. (Build twice)  
-        - Name: POST_DEPLOY_S3_STATIC_HOST_BUCKET
-          Value: !Ref 'PostDeployS3StaticHostBucket'
       Source:
         Type: CODEPIPELINE
         BuildSpec: !If 

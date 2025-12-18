@@ -13,15 +13,15 @@ version: 0.2
 # - AWS_PARTITION, AWS_REGION, AWS_ACCOUNT: AWS environment info
 # - PREFIX, PROJECT_ID, STAGE_ID: Resource naming components
 # - S3_ARTIFACTS_BUCKET: Pipeline artifacts bucket
-# - POST_DEPLOY_S3_STATIC_HOST_BUCKET: Target bucket for documentation
+# - S3_STATIC_HOST_BUCKET: Target bucket for documentation
 # - PARAM_STORE_HIERARCHY: SSM parameter path for application config
 # - DEPLOY_ENVIRONMENT: Deployment environment (DEV/TEST/PROD)
 
 phases:
   install:
     runtime-versions:
-      python: 3.13
-      nodejs: 22
+      nodejs: latest
+      python: latest
     commands:
       - echo "Installing dependencies for API documentation export"
       - pip install boto3 requests pyyaml
@@ -31,7 +31,7 @@ phases:
     commands:
       - echo "PostDeploy phase started at `date`"
       - echo "Exporting API documentation for $PREFIX-$PROJECT_ID-$STAGE_ID"
-      - echo "Target documentation bucket: $POST_DEPLOY_S3_STATIC_HOST_BUCKET"
+      - echo "Target documentation bucket: $S3_STATIC_HOST_BUCKET"
       
       # Discover deployed API Gateway REST APIs
       - |
@@ -151,8 +151,8 @@ phases:
       
       # Upload to documentation bucket if specified
       - |
-        if [ -n "$POST_DEPLOY_S3_STATIC_HOST_BUCKET" ]; then
-          echo "Uploading to bucket: $POST_DEPLOY_S3_STATIC_HOST_BUCKET"
+        if [ -n "$S3_STATIC_HOST_BUCKET" ]; then
+          echo "Uploading to bucket: $S3_STATIC_HOST_BUCKET"
           
           # Create documentation path
           DOC_PATH="api-docs/$PREFIX-$PROJECT_ID-$STAGE_ID/$(date +%Y-%m-%d)"
@@ -160,15 +160,15 @@ phases:
           # Upload all OpenAPI specifications
           for spec_file in *-openapi*.json; do
             if [ -f "$spec_file" ]; then
-              aws s3 cp "$spec_file" "s3://$POST_DEPLOY_S3_STATIC_HOST_BUCKET/$DOC_PATH/$spec_file"
+              aws s3 cp "$spec_file" "s3://$S3_STATIC_HOST_BUCKET/$DOC_PATH/$spec_file"
               echo "Uploaded $spec_file"
             fi
           done
           
           # Upload metadata
-          aws s3 cp "api-docs-metadata.json" "s3://$POST_DEPLOY_S3_STATIC_HOST_BUCKET/$DOC_PATH/metadata.json"
+          aws s3 cp "api-docs-metadata.json" "s3://$S3_STATIC_HOST_BUCKET/$DOC_PATH/metadata.json"
           
-          echo "Documentation uploaded to: s3://$POST_DEPLOY_S3_STATIC_HOST_BUCKET/$DOC_PATH/"
+          echo "Documentation uploaded to: s3://$S3_STATIC_HOST_BUCKET/$DOC_PATH/"
         else
           echo "No documentation bucket specified, skipping upload"
         fi
