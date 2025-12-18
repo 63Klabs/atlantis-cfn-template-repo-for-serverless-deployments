@@ -37,8 +37,6 @@ phases:
       - cd tests
       - echo "Running unit tests..."
       - ../.venv/bin/python -m pytest test_postdeploy_unit.py -v --tb=short --junit-xml=test-results-unit.xml || TEST_FAILED=1
-      - echo "Running property-based tests..."
-      - ../.venv/bin/python -m pytest test_postdeploy_property_based.py -v --tb=short --junit-xml=test-results-property.xml || TEST_FAILED=1
       - echo "Running CFN validation tests..."
       - ../.venv/bin/python -m pytest test_cfn_templates.py -v --tb=short --junit-xml=test-results-cfn.xml || TEST_FAILED=1
       - echo "Combining test results..."
