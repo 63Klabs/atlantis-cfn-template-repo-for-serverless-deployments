@@ -1260,6 +1260,8 @@ Resources:
 
   PostDeployProject:
     Type: AWS::CodeBuild::Project
+    # DependsOn:
+    # - PostDeployServiceRole
     Condition: IsPostDeployEnabledAndNotDev
     Properties:
       Name: !Sub '${Prefix}-${ProjectId}-${StageId}-PostDeploy'
