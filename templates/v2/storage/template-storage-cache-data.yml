@@ -227,11 +227,15 @@ Resources:
             Effect: Allow
             Resource: !Sub 'arn:aws:s3:::${CacheDataS3Bucket}/cache/*'
 
-          - Sid: LambdaAccessToS3Bucket
+          - Sid: LambdaAccessToS3ListBucket
             Action:
             - s3:ListBucket
             Effect: Allow
             Resource: !Sub 'arn:aws:s3:::${CacheDataS3Bucket}'
+            Condition:
+              StringLike:
+                s3:prefix:
+                  - 'cache'
 
           - Sid: LambdaAccessToDynamoDBTableCacheData
             Action:
