@@ -232,10 +232,10 @@ Resources:
             - s3:ListBucket
             Effect: Allow
             Resource: !Sub 'arn:aws:s3:::${CacheDataS3Bucket}'
-            Condition:
-              StringLike:
-                s3:prefix:
-                  - 'cache'
+            # Condition: # will be enabled in future if after further testing
+            #   StringLike:
+            #     s3:prefix:
+            #       - 'cache'
 
           - Sid: LambdaAccessToDynamoDBTableCacheData
             Action:
