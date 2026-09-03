@@ -14,6 +14,11 @@ When deploying to other regions you may need to [self-host under certain deploym
 
 The Atlantis Templates Repository is free and open source. Templates and build/deploy scripts for both CodePipeline and GitHub Pipeline are available from the [Atlantis SAM Templates repository on GitHub](https://github.com/63Klabs/atlantis-sam-templates).
 
+## v0.0.42 (2026-09-03)
+
+### Changed
+- **Modules: pipeline-mgmt-role.yml** - Added CodeBuild service trust policy to enable CodeBuild to assume the pipeline management role
+
 ## v0.0.41 (2026-08-20)
 
 ### Changed

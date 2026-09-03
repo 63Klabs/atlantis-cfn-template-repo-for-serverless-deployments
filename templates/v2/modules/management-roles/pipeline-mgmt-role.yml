@@ -41,6 +41,12 @@ Properties:
       Principal:
         Service:
         - cloudformation.amazonaws.com
+    - Sid: "CodeBuildTrustPolicy"
+      Effect: Allow
+      Action: sts:AssumeRole
+      Principal:
+        Service:
+        - codebuild.amazonaws.com
 
   Policies:
   - PolicyName:
